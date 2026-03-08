@@ -45,6 +45,8 @@
 static const double BASE_LOGIC_STEP_SECONDS = 0.14; // original coarse game step (~1/7.14s)
 static const int PHYSICS_SUBSTEPS_PER_BASE_LOGIC = 7;
 static const double PHYSICS_STEP_SECONDS = BASE_LOGIC_STEP_SECONDS / PHYSICS_SUBSTEPS_PER_BASE_LOGIC;
+/* Cap physics steps per frame to avoid catch-up stutter and spiral of death when the game can't keep up. */
+static const int MAX_PHYSICS_STEPS_PER_FRAME = 10;
 
 GameModeType GameMode = TRACK_MENU;
 
@@ -2013,10 +2015,16 @@ static bool RunFrame(double frameTime, bool allowQuit) {
         frameDelta = 0.25;
     g_lastFrameTime = frameTime;
     g_logicAccumulator += frameDelta;
+    /* Clamp accumulator so we never run more than MAX_PHYSICS_STEPS_PER_FRAME per frame; drop excess time to avoid spiral of death. */
+    const double maxAccumulator = MAX_PHYSICS_STEPS_PER_FRAME * PHYSICS_STEP_SECONDS;
+    if (g_logicAccumulator > maxAccumulator)
+        g_logicAccumulator = maxAccumulator;
 
     bool anyLogicFrameMoved = false;
-    while (g_logicAccumulator >= PHYSICS_STEP_SECONDS) {
+    int stepsThisFrame = 0;
+    while (g_logicAccumulator >= PHYSICS_STEP_SECONDS && stepsThisFrame < MAX_PHYSICS_STEPS_PER_FRAME) {
         g_logicAccumulator -= PHYSICS_STEP_SECONDS;
+        ++stepsThisFrame;
         ++g_physicsTicksInWindow;
         ++g_physicsTickTotal;
         if ((GameMode == GAME_IN_PROGRESS) && (!bPaused)) {
