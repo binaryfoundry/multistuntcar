@@ -861,7 +861,7 @@ static void UpdateInterpolatedCarTransforms(IDirect3DDevice9* pd3dDevice, float 
         D3DXMatrixMultiply(&matView, &matView, &matTrans);
 #endif
         pd3dDevice->SetTransform(D3DTS_VIEW, &matView);
-    } else if (GameMode == TRACK_PREVIEW) {
+    } else if ((GameMode == TRACK_PREVIEW) || (GameMode == TRACK_MENU)) {
         const float viewX = LerpLong(prev_viewpoint1_x, viewpoint1_x, alpha);
         const float viewY = -LerpLong(prev_viewpoint1_y, viewpoint1_y, alpha) / static_cast<float>(1 << LOG_PRECISION);
         const float viewZ = LerpLong(prev_viewpoint1_z, viewpoint1_z, alpha);
@@ -1726,13 +1726,14 @@ static bool RunFrame(double frameTime, bool allowQuit) {
     }
     bFrameMoved = anyLogicFrameMoved;
 
-    if ((GameMode == TRACK_PREVIEW) || (GameMode == GAME_IN_PROGRESS)) {
+    if ((GameMode == TRACK_MENU) || (GameMode == TRACK_PREVIEW) || (GameMode == GAME_IN_PROGRESS)) {
         const double substepFraction = g_logicAccumulator / PHYSICS_STEP_SECONDS;
         const double baseProgress = (static_cast<double>(g_baseLogicSubstepCounter) + substepFraction) /
                                     static_cast<double>(PHYSICS_SUBSTEPS_PER_BASE_LOGIC);
         const float alpha = static_cast<float>(baseProgress);
         UpdateInterpolatedCarTransforms(&pd3dDevice, alpha);
-        UpdateInterpolatedOpponentShadow(alpha);
+        if ((GameMode == TRACK_PREVIEW) || (GameMode == GAME_IN_PROGRESS))
+            UpdateInterpolatedOpponentShadow(alpha);
     }
 
     RenderCurrentFrame(frameTime, static_cast<float>(frameDelta));
