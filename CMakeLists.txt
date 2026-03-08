@@ -55,10 +55,10 @@ if(EMSCRIPTEN)
 
   if(STUNT_ENABLE_WEB_ASSETS)
     target_link_options(stuntcarracer PRIVATE
-      "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/Tracks@/Tracks"
-      "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/Sounds@/Sounds"
-      "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/Bitmap@/Bitmap"
-      "SHELL:--embed-file ${CMAKE_CURRENT_SOURCE_DIR}/DejaVuSans-Bold.ttf@/DejaVuSans-Bold.ttf"
+      "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/data/Tracks@/data/Tracks"
+      "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/data/Sounds@/data/Sounds"
+      "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/data/Bitmap@/data/Bitmap"
+      "SHELL:--embed-file ${CMAKE_CURRENT_SOURCE_DIR}/data/DejaVuSans-Bold.ttf@/data/DejaVuSans-Bold.ttf"
       "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/template.html"
     )
   endif()

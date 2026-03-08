@@ -503,11 +503,11 @@ void CreateFonts()
 
 	if (g_pFont==NULL)
 	{
-		g_pFont = TTF_OpenFont("DejaVuSans-Bold.ttf", 15);
+		g_pFont = TTF_OpenFont("data/DejaVuSans-Bold.ttf", 15);
 	}
 	if (g_pFontLarge==NULL)
 	{
-		g_pFontLarge = TTF_OpenFont("DejaVuSans-Bold.ttf", 25);
+		g_pFontLarge = TTF_OpenFont("data/DejaVuSans-Bold.ttf", 25);
 	}
 	printf("Font created (%p / %p)\n", g_pFont, g_pFontLarge);
 }
@@ -527,7 +527,7 @@ void CloseFonts()
 void LoadTextures()
 {
 	if (!g_pAtlas) g_pAtlas = new IDirect3DTexture9();
-	g_pAtlas->LoadTexture("Bitmap/atlas.png");
+	g_pAtlas->LoadTexture("data/Bitmap/atlas.png");
 	InitAtlasCoord();
 	printf("Texture loaded\n");
 }
@@ -1664,7 +1664,7 @@ int main(int argc, const char** argv)
 	char maintitle[50] = {0};
 	sprintf(maintitle, "StuntCarRemake v%d.%02d.%02d", V_MAJOR, V_MINOR, V_PATCH);
 	printf("%s\n", maintitle);
-	// Run from the executable directory so relative assets (Bitmap/Sounds/Tracks) resolve.
+	// Run from the executable directory so relative assets (data/Bitmap, data/Sounds, data/Tracks) resolve.
 	char* basePath = SDL_GetBasePath();
 	if (basePath && basePath[0] != '\0')
 	{
@@ -1853,7 +1853,7 @@ int main(int argc, const char** argv)
 	{
 		// icon...
 		int x,y,n;
-		unsigned char *img = stbi_load("Bitmap/icon.png", &x, &y, &n, STBI_rgb_alpha);
+		unsigned char *img = stbi_load("data/Bitmap/icon.png", &x, &y, &n, STBI_rgb_alpha);
 		if(img) {
 			SDL_Surface *icon = 
 			#ifdef USE_SDL2

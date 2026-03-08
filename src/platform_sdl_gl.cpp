@@ -13,8 +13,8 @@ static const char* resname[] = {
 	"RoadRedLight", "RoadBlack", "RoadWhite", 
 	0};
 static const char* filename[] = {
-	"Bitmap/RoadYellowDark.bmp", "Bitmap/RoadYellowLight.bmp", "Bitmap/RoadRedDark.bmp", 
-	"Bitmap/RoadRedLight.bmp", "Bitmap/RoadBlack.bmp", "Bitmap/RoadWhite.bmp", 
+	"data/Bitmap/RoadYellowDark.bmp", "data/Bitmap/RoadYellowLight.bmp", "data/Bitmap/RoadRedDark.bmp", 
+	"data/Bitmap/RoadRedLight.bmp", "data/Bitmap/RoadBlack.bmp", "data/Bitmap/RoadWhite.bmp", 
 	0};
 	
 	int i = 0;

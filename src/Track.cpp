@@ -2647,14 +2647,14 @@ static long ReadAmigaTrackData( long track )
 /*
 // variables that were used to load from files
 	char	track_filenames[][80] =
-								   {"Tracks\\LittleRamp.bin",
-									"Tracks\\SteppingStones.bin",
-									"Tracks\\HumpBack.bin",
-									"Tracks\\BigRamp.bin",
-									"Tracks\\SkiJump.bin",
-									"Tracks\\DrawBridge.bin",
-									"Tracks\\HighJump.bin",
-									"Tracks\\RollerCoaster.bin"};
+								   {"data\\Tracks\\LittleRamp.bin",
+									"data\\Tracks\\SteppingStones.bin",
+									"data\\Tracks\\HumpBack.bin",
+									"data\\Tracks\\BigRamp.bin",
+									"data\\Tracks\\SkiJump.bin",
+									"data\\Tracks\\DrawBridge.bin",
+									"data\\Tracks\\HighJump.bin",
+									"data\\Tracks\\RollerCoaster.bin"};
 	FILE	*in_file;
 	char	buffer[TRACK_DATA_SIZE];
 */
@@ -2755,7 +2755,7 @@ static void *GetTRACKResource( HMODULE hModule, LPCWSTR lpResName )
 	void		*pTRACKBytes;
 #ifdef linux
 const WCHAR* resname[] = {L"LITTLERAMP", L"STEPPINGSTONES", L"HUMPBACK", L"BIGRAMP", L"SKIJUMP", L"DRAWBRIDGE", L"HIGHJUMP", L"ROLLERCOASTER", 0};
-const char* filename[] = {"Tracks/LittleRamp.bin", "Tracks/SteppingStones.bin", "Tracks/HumpBack.bin", "Tracks/BigRamp.bin", "Tracks/SkiJump.bin", "Tracks/DrawBridge.bin", "Tracks/HighJump.bin", "Tracks/RollerCoaster.bin"};
+const char* filename[] = {"data/Tracks/LittleRamp.bin", "data/Tracks/SteppingStones.bin", "data/Tracks/HumpBack.bin", "data/Tracks/BigRamp.bin", "data/Tracks/SkiJump.bin", "data/Tracks/DrawBridge.bin", "data/Tracks/HighJump.bin", "data/Tracks/RollerCoaster.bin"};
 	int i = 0;
 	while(resname[i] && wcscasecmp(resname[i], lpResName)) i++;
 	if(!resname[i]) return NULL;
