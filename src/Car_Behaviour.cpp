@@ -483,6 +483,7 @@ void CarBehaviour(DWORD input, long* x, long* y, long* z, long* x_angle, long* y
             PositionCarAbovePiece(PlayersStartPiece);
         }
         drop_start_done = FALSE;
+        RequestRestartEngineAudioOnFirstInput(); /* engine audio restarts on next keyboard/gamepad input */
 
         if (bNewGame) {
             // reset action replay recording

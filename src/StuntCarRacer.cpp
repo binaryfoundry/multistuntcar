@@ -942,6 +942,10 @@ static void RestartEngineAudioBuffers(bool resetEngineModel) {
         ResetEngineAudioState();
 }
 
+void RequestRestartEngineAudioOnFirstInput(void) {
+    g_restartEngineAudioOnFirstInput = true;
+}
+
 static void StopEngineSound(void) {
     if (engineSoundPlaying) {
         RestartEngineAudioBuffers(true);
@@ -2030,9 +2034,10 @@ static bool RunFrame(double frameTime, bool allowQuit) {
 
         // --- Audio (once per physics step) ---
         if ((GameMode == GAME_IN_PROGRESS) && (!bPaused)) {
+            // lastInput is combined keyboard + gamepad (RefreshCombinedInput), so first-input check covers both.
             const DWORD drivingInputMask = KEY_P1_LEFT | KEY_P1_RIGHT | KEY_P1_ACCEL | KEY_P1_BRAKE | KEY_P1_BOOST;
             if (g_restartEngineAudioOnFirstInput) {
-                // Keep engine audio fully silent until the first gameplay input,
+                // Keep engine audio fully silent until the first gameplay input (keyboard or gamepad),
                 // but continue advancing engine state so revs are prewarmed.
                 StepEngineAudioStateSubstep(g_physicsSubstepsPerBaseLogic);
                 if ((lastInput & drivingInputMask) != 0) {
