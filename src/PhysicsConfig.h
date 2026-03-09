@@ -18,7 +18,7 @@
  */
 
 #ifndef PHYSICS_UPDATE_HZ
-#define PHYSICS_UPDATE_HZ 50
+#define PHYSICS_UPDATE_HZ 60
 #endif
 
 /** Reference timestep (seconds) the integration was tuned for (original ~7.14 Hz logic tick).
