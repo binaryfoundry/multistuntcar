@@ -2015,10 +2015,11 @@ static bool RunFrame(double frameTime, bool allowQuit) {
     if (g_logicTickAccumulator > 2.0 * g_logicTickInterval)
         g_logicTickAccumulator = g_logicTickInterval;
 
-    /* Reset interpolation when menu/game mode changes so we don't lerp from stale state. */
+    /* Reset interpolation when menu/game mode changes or delta is large so we don't lerp from stale state. */
     {
         static GameModeType s_prevGameMode = TRACK_MENU;
-        if (GameMode != s_prevGameMode) {
+        const double interpolationResetDelta = 2.0 * g_physicsStepSeconds;  // e.g. ~2 physics steps
+        if (GameMode != s_prevGameMode || frameDelta > interpolationResetDelta) {
             have_prev_car_state = false;
             s_prevGameMode = GameMode;
         }
