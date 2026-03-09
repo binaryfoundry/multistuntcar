@@ -2121,6 +2121,9 @@ int main(int argc, const char** argv) {
             printf("chdir(\"%s\")\n", basePath);
         SDL_free(basePath);
     }
+#ifdef _WIN32
+    SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "0");
+#endif
 #ifdef USE_SDL2
     SDL_GLContext context = NULL;
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) == -1) {
