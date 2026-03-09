@@ -996,25 +996,6 @@ void DrawPolygon(POINT* pptr, long sides) {
 }
 
 void DrawFilledRectangle(long x1, long y1, long x2, long y2, DWORD colour) {
-#ifdef linux
-#ifdef HAVE_GLES
-    float vtx[4 * 2] = {x1, y1, x1, y2, x2, y2, x2, y1};
-    glColor4ubv((GLubyte*)&colour);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(4, GL_FLOAT, 0, vtx);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-    glDisableClientState(GL_VERTEX_ARRAY);
-#else
-    glColor4ubv((GLubyte*)&colour);
-    glBegin(GL_TRIANGLE_FAN);
-    glVertex2i(x1, y1);
-    glVertex2i(x1, y2);
-    glVertex2i(x2, y2);
-    glVertex2i(x2, y1);
-    glEnd();
-#endif
-#else
-    HRESULT hr;
     ClearRect rect;
     RenderDevice* pDevice = GetRenderDevice();
 
@@ -1023,6 +1004,4 @@ void DrawFilledRectangle(long x1, long y1, long x2, long y2, DWORD colour) {
     rect.x2 = x2 + 1;
     rect.y2 = y2 + 1;
     V(pDevice->Clear(1, &rect, CLEAR_TARGET, colour, 0, 0));
-#endif
-    return;
 }

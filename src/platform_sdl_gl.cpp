@@ -722,15 +722,29 @@ HRESULT RenderDevice::Clear(DWORD Count, const ClearRect* pRects, DWORD Flags, C
     }
     if (Flags & CLEAR_TARGET) {
         float r, g, b, a;
-        a = ((Color >> 0) & 0xff) / 255.0f;
-        b = ((Color >> 8) & 0xff) / 255.0f;
-        g = ((Color >> 16) & 0xff) / 255.0f;
-        r = ((Color >> 24) & 0xff) / 255.0f;
+        r = ((Color >> 0) & 0xff) / 255.0f;
+        g = ((Color >> 8) & 0xff) / 255.0f;
+        b = ((Color >> 16) & 0xff) / 255.0f;
+        a = ((Color >> 24) & 0xff) / 255.0f;
         glClearColor(r, g, b, a);
         clearval |= GL_COLOR_BUFFER_BIT;
     }
-    if (clearval)
+    if (clearval) {
+        GLboolean scissorEnabled = glIsEnabled(GL_SCISSOR_TEST);
+        if (Count > 0 && pRects) {
+            GLint vp[4];
+            glGetIntegerv(GL_VIEWPORT, vp);
+            /* pRects use top-left origin (y down); glScissor uses bottom-left (y up) */
+            glEnable(GL_SCISSOR_TEST);
+            glScissor((GLint)pRects[0].x1, (GLint)(vp[3] - pRects[0].y2),
+                      (GLsizei)(pRects[0].x2 - pRects[0].x1), (GLsizei)(pRects[0].y2 - pRects[0].y1));
+        }
         glClear(clearval);
+        if (Count > 0 && pRects) {
+            if (!scissorEnabled)
+                glDisable(GL_SCISSOR_TEST);
+        }
+    }
     return S_OK;
 }
 

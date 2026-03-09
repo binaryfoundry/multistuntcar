@@ -928,7 +928,7 @@ void DrawCockpit(RenderDevice* pDevice) {
     pDevice->SetTextureStageState(0, TSS_ALPHAOP, TOP_BLENDDIFFUSEALPHA);
     pDevice->SetTextureStageState(0, TSS_ALPHAARG1, TA_TEXTURE);
     pDevice->SetTextureStageState(0, TSS_ALPHAARG2, TA_DIFFUSE);
-    pDevice->SetTextureStageState(0, TSS_COLOROP, TSS_COLORARG1);
+    pDevice->SetTextureStageState(0, TSS_COLOROP, TOP_SELECTARG1);
     pDevice->SetTextureStageState(0, TSS_COLORARG1, TA_TEXTURE);
     pDevice->SetTextureStageState(1, TSS_COLOROP, TOP_DISABLE);
 #ifdef WIN32
