@@ -42,6 +42,9 @@
 #define HEIGHT_ABOVE_ROAD (100)
 
 #define FURTHEST_Z (131072.0f)
+/* Perspective depth range: keep near/far ratio modest to avoid depth-buffer precision loss and z-fighting */
+#define PERSPECTIVE_NEAR (5.0f)
+#define PERSPECTIVE_FAR  (131072.0f)
 static const double BASE_LOGIC_STEP_SECONDS = 0.14; // original coarse game step (~1/7.14s)
 static const int PHYSICS_SUBSTEPS_PER_BASE_LOGIC = 7;
 static const double PHYSICS_STEP_SECONDS = BASE_LOGIC_STEP_SECONDS / PHYSICS_SUBSTEPS_PER_BASE_LOGIC;
@@ -1814,7 +1817,7 @@ static void ApplyWindowLayout(int windowWidth, int windowHeight, bool logLayout)
 
     glm::mat4 matProj;
     FLOAT fAspect = projWidth / virtualHeight;
-    mat4PerspectiveFov(&matProj, PI / 4, fAspect, 0.5f, FURTHEST_Z);
+    mat4PerspectiveFov(&matProj, PI / 4, fAspect, PERSPECTIVE_NEAR, PERSPECTIVE_FAR);
     pDevice.SetTransform(TS_PROJECTION, &matProj);
 
     if (logLayout) {
