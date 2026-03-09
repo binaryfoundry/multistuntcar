@@ -195,6 +195,7 @@ static void HandleGamepadDeviceRemoved(SDL_JoystickID instanceId);
 static DWORD BuildGamepadInputForPlayer(SDL_GameController* controller);
 static void RefreshGamepadInput(void);
 static void CloseAllGamepads(void);
+extern SDL_Window* window;
 #endif
 
 /**************************************************************************
@@ -385,10 +386,16 @@ static void FreeData(void) {
 /*    ======================================================================================= */
 
 void GetScreenDimensions(long* screen_width, long* screen_height) {
+#ifdef USE_SDL2
+    if (window) {
+        int w, h;
+        SDL_GetWindowSize(window, &w, &h);
+        *screen_width = w;
+        *screen_height = h;
+        return;
+    }
+#endif
 #ifdef linux
-    /*const SDL_VideoInfo* info = SDL_GetVideoInfo();
-    *screen_width = info->current_w;
-    *screen_height = info->current_h; */
     *screen_width = (wideScreen) ? 800 : 640;
     *screen_height = 480;
 #else
@@ -2159,6 +2166,17 @@ static bool RunFrame(double frameTime, bool allowQuit) {
 
 #ifdef __EMSCRIPTEN__
 void em_main_loop() {
+    /* Poll canvas/window size when JS resize() has updated the canvas dimensions */
+    if (window) {
+        int w, h;
+        SDL_GetWindowSize(window, &w, &h);
+        static int s_lastW = 0, s_lastH = 0;
+        if ((s_lastW != w || s_lastH != h) && w > 0 && h > 0) {
+            s_lastW = w;
+            s_lastH = h;
+            ApplyWindowLayout(w, h, false);
+        }
+    }
     RunFrame(GetTimeSeconds(), false);
 }
 #endif
@@ -2413,6 +2431,10 @@ int main(int argc, const char** argv) {
 #endif
         SDL_ShowCursor(SDL_DISABLE);
     ApplyWindowLayout(screenW, screenH, true);
+#ifdef __EMSCRIPTEN__
+    /* Ask the shell to resize the canvas to the container so the first frame fits the page */
+    emscripten_run_script("if (typeof window.triggerResize === 'function') window.triggerResize();");
+#endif
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 

@@ -17,12 +17,9 @@
         justify-content: center;
       }
       .game {
-        width: auto;
-        height: 100%;
-      }
-      .portrait{
         width: 100%;
-        height: auto;
+        height: 100%;
+        display: block;
       }
       .loading {
         position: absolute;
@@ -34,15 +31,19 @@
   </head>
   <body>
     <div class="emscripten">
-      <canvas id="canvas" class="game portrait" oncontextmenu="event.preventDefault()"></canvas>
+      <canvas id="canvas" class="game" oncontextmenu="event.preventDefault()"></canvas>
       <div class="loading">Loading...</div>
     </div>
     <script type="text/javascript">
         const $game = document.querySelector('.game');
-        const widthToHeight = 800 / 480;
-        const resize = () => {
-            if(window.innerWidth / window.innerHeight > widthToHeight === $game.classList.contains('portrait')) {
-            $game.classList.toggle('portrait');
+        function resize() {
+            const canvas = document.getElementById('canvas');
+            if (!canvas || typeof Module === 'undefined' || !Module.canvas) return;
+            const w = Math.max(1, window.innerWidth);
+            const h = Math.max(1, window.innerHeight);
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
             }
         }
         var Module = {
@@ -56,7 +57,12 @@
             noStdioInit: true
         };
         window.addEventListener('resize', resize, false);
-        resize();
+        window.triggerResize = resize;
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() { resize(); });
+        } else {
+            resize();
+        }
         // Work-around chromium autoplay policy
         // https://github.com/emscripten-core/emscripten/issues/6511
         function resumeAudio(e) {
