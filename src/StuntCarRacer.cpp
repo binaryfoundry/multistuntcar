@@ -2260,7 +2260,12 @@ int main(int argc, const char** argv) {
     DSInit();
     DSSetMode();
 
-    glClearColor(0, 0, 0, 1);
+    /* Clear to sky colour so any unfilled pixels (e.g. right edge) match the backdrop */
+    {
+        const DWORD sky = SCRGB(SCR_BASE_COLOUR + 7); /* SKY_COLOUR */
+        glClearColor(((sky >> 0) & 0xff) / 255.0f, ((sky >> 8) & 0xff) / 255.0f,
+                     ((sky >> 16) & 0xff) / 255.0f, 1.0f);
+    }
     RefreshCombinedInput();
     ResetFourteenFrameTiming();
 #ifdef __EMSCRIPTEN__

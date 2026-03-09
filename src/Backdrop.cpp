@@ -54,6 +54,16 @@ static long ClipLine(long* x1ptr, long* y1ptr, long* x2ptr, long* y2ptr, long sc
 /*    ======================================================================================= */
 
 void DrawBackdrop(long viewpoint_y, long viewpoint_x_angle, long viewpoint_y_angle, long viewpoint_z_angle) {
+    /* Clear screen to sky colour first so any unfilled pixels match the backdrop */
+    {
+        const DWORD sky = SCRGB(SKY_COLOUR);
+        const float r = ((sky >> 0) & 0xff) / 255.0f;
+        const float g = ((sky >> 8) & 0xff) / 255.0f;
+        const float b = ((sky >> 16) & 0xff) / 255.0f;
+        glClearColor(r, g, b, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+
     DrawHorizon(viewpoint_y, viewpoint_x_angle, viewpoint_z_angle);
 
     DrawScenery(viewpoint_y, viewpoint_x_angle, viewpoint_y_angle, viewpoint_z_angle);
@@ -195,10 +205,22 @@ static void DrawHorizon(long viewpoint_y, long viewpoint_x_angle, long viewpoint
         on_screen = FALSE;
 
     if (on_screen) {
+        /* Draw sky and ground as polygons clipped by the horizon line so they meet exactly when view rolls */
         POINT points[MAX_POLY_SIDES];
         long sides;
 
-        DrawFilledRectangle(min_x, min_y, max_x, max_y, SCRGB(SKY_COLOUR));
+        /* Sky: the half of the screen on the "sky" side of the horizon line */
+        sides = BuildGroundPlanePolygon(x1, y1, x2, y2, screen_width, screen_height, !upside_down, points);
+        if (sides >= 3) {
+            SetTextureColour(SKY_COLOUR);
+            DrawPolygon(points, sides);
+        }
+        /* Ground: the half on the "ground" side (from horizon down to bottom), so backdrop meets ground plane */
+        sides = BuildGroundPlanePolygon(x1, y1, x2, y2, screen_width, screen_height, upside_down, points);
+        if (sides >= 3) {
+            SetTextureColour(GROUND_COLOUR);
+            DrawPolygon(points, sides);
+        }
     } else // horizon line is off screen
     {
         long off_top = FALSE, off_bottom = FALSE;
