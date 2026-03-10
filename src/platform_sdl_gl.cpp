@@ -334,6 +334,8 @@ glm::mat4* mat4PerspectiveFov(glm::mat4* pOut, float fovy, float Aspect, float z
     return pOut;
 }
 
+extern DWORD SCRGB(long colour_index);
+
 namespace {
 constexpr GLuint ATTRIB_POSITION = 0;
 constexpr GLuint ATTRIB_COLOR = 1;
@@ -341,6 +343,9 @@ constexpr GLuint ATTRIB_TEXCOORD = 2;
 constexpr float SCREEN_VIRTUAL_HEIGHT = 480.0f;
 constexpr float SCREEN_NEAR_Z = -1.0f;
 constexpr float SCREEN_FAR_Z = 1.0f;
+constexpr float FOG_DENSITY = 0.00002f;
+constexpr float INV_SQRT2 = 0.70710678118f;
+constexpr long SKY_COLOUR_INDEX = 26 + 7;
 
 #if !defined(HAVE_GLES) && !defined(__EMSCRIPTEN__)
 struct GLFunctions {
@@ -365,7 +370,9 @@ struct GLFunctions {
     PFNGLGETUNIFORMLOCATIONPROC GetUniformLocation;
     PFNGLLINKPROGRAMPROC LinkProgram;
     PFNGLSHADERSOURCEPROC ShaderSource;
+    PFNGLUNIFORM1FPROC Uniform1f;
     PFNGLUNIFORM1IPROC Uniform1i;
+    PFNGLUNIFORM3FPROC Uniform3f;
     PFNGLUNIFORMMATRIX4FVPROC UniformMatrix4fv;
     PFNGLUSEPROGRAMPROC UseProgram;
     PFNGLVERTEXATTRIB2FPROC VertexAttrib2f;
@@ -410,7 +417,9 @@ static bool EnsureGLFunctions() {
     ok &= LoadGLProc(&gGl.GetUniformLocation, "glGetUniformLocation");
     ok &= LoadGLProc(&gGl.LinkProgram, "glLinkProgram");
     ok &= LoadGLProc(&gGl.ShaderSource, "glShaderSource");
+    ok &= LoadGLProc(&gGl.Uniform1f, "glUniform1f");
     ok &= LoadGLProc(&gGl.Uniform1i, "glUniform1i");
+    ok &= LoadGLProc(&gGl.Uniform3f, "glUniform3f");
     ok &= LoadGLProc(&gGl.UniformMatrix4fv, "glUniformMatrix4fv");
     ok &= LoadGLProc(&gGl.UseProgram, "glUseProgram");
     ok &= LoadGLProc(&gGl.VertexAttrib2f, "glVertexAttrib2f");
@@ -491,11 +500,14 @@ static GLuint BuildShaderProgram() {
         "attribute vec4 aColor;\n"
         "attribute vec2 aTexCoord;\n"
         "uniform mat4 uMvp;\n"
+        "uniform mat4 uModelView;\n"
         "uniform mat4 uTexMatrix;\n"
         "varying vec4 vColor;\n"
         "varying vec2 vTexCoord;\n"
+        "varying vec3 vViewPos;\n"
         "void main() {\n"
         "  gl_Position = uMvp * vec4(aPosition.xyz, 1.0);\n"
+        "  vViewPos = (uModelView * vec4(aPosition.xyz, 1.0)).xyz;\n"
         "  vColor = aColor;\n"
         "  vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n"
         "}\n";
@@ -504,8 +516,19 @@ static GLuint BuildShaderProgram() {
         "precision mediump float;\n"
         "uniform sampler2D uTexture;\n"
         "uniform int uColorMode;\n"
+        "uniform int uFogEnabled;\n"
+        "uniform float uFogDensity;\n"
+        "uniform vec3 uFogSkyColor;\n"
+        "uniform vec3 uSunDirView;\n"
         "varying vec4 vColor;\n"
         "varying vec2 vTexCoord;\n"
+        "varying vec3 vViewPos;\n"
+        "vec3 applyFog(in vec3 col, in float t, in vec3 rd, in vec3 lig) {\n"
+        "  float fogAmount = 1.0 - exp(-t * uFogDensity);\n"
+        "  float sunAmount = max(dot(rd, lig), 0.0);\n"
+        "  vec3 fogColor = mix(uFogSkyColor, vec3(1.0, 0.9, 0.7), pow(sunAmount, 8.0));\n"
+        "  return mix(col, fogColor, fogAmount);\n"
+        "}\n"
         "void main() {\n"
         "  vec4 outColor = vec4(1.0);\n"
         "  if (uColorMode == 1) {\n"
@@ -514,6 +537,11 @@ static GLuint BuildShaderProgram() {
         "    outColor = texture2D(uTexture, vTexCoord);\n"
         "  } else if (uColorMode == 3) {\n"
         "    outColor = texture2D(uTexture, vTexCoord) * vColor;\n"
+        "  }\n"
+        "  if (uFogEnabled == 1) {\n"
+        "    float t = length(vViewPos);\n"
+        "    vec3 rd = (t > 0.0001) ? (vViewPos / t) : vec3(0.0, 0.0, 1.0);\n"
+        "    outColor.rgb = applyFog(outColor.rgb, t, rd, normalize(uSunDirView));\n"
         "  }\n"
         "  gl_FragColor = outColor;\n"
         "}\n";
@@ -524,11 +552,14 @@ static GLuint BuildShaderProgram() {
         "attribute vec4 aColor;\n"
         "attribute vec2 aTexCoord;\n"
         "uniform mat4 uMvp;\n"
+        "uniform mat4 uModelView;\n"
         "uniform mat4 uTexMatrix;\n"
         "varying vec4 vColor;\n"
         "varying vec2 vTexCoord;\n"
+        "varying vec3 vViewPos;\n"
         "void main() {\n"
         "  gl_Position = uMvp * vec4(aPosition.xyz, 1.0);\n"
+        "  vViewPos = (uModelView * vec4(aPosition.xyz, 1.0)).xyz;\n"
         "  vColor = aColor;\n"
         "  vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n"
         "}\n";
@@ -537,8 +568,19 @@ static GLuint BuildShaderProgram() {
         "#version 120\n"
         "uniform sampler2D uTexture;\n"
         "uniform int uColorMode;\n"
+        "uniform int uFogEnabled;\n"
+        "uniform float uFogDensity;\n"
+        "uniform vec3 uFogSkyColor;\n"
+        "uniform vec3 uSunDirView;\n"
         "varying vec4 vColor;\n"
         "varying vec2 vTexCoord;\n"
+        "varying vec3 vViewPos;\n"
+        "vec3 applyFog(in vec3 col, in float t, in vec3 rd, in vec3 lig) {\n"
+        "  float fogAmount = 1.0 - exp(-t * uFogDensity);\n"
+        "  float sunAmount = max(dot(rd, lig), 0.0);\n"
+        "  vec3 fogColor = mix(uFogSkyColor, vec3(1.0, 0.9, 0.7), pow(sunAmount, 8.0));\n"
+        "  return mix(col, fogColor, fogAmount);\n"
+        "}\n"
         "void main() {\n"
         "  vec4 outColor = vec4(1.0);\n"
         "  if (uColorMode == 1) {\n"
@@ -547,6 +589,11 @@ static GLuint BuildShaderProgram() {
         "    outColor = texture2D(uTexture, vTexCoord);\n"
         "  } else if (uColorMode == 3) {\n"
         "    outColor = texture2D(uTexture, vTexCoord) * vColor;\n"
+        "  }\n"
+        "  if (uFogEnabled == 1) {\n"
+        "    float t = length(vViewPos);\n"
+        "    vec3 rd = (t > 0.0001) ? (vViewPos / t) : vec3(0.0, 0.0, 1.0);\n"
+        "    outColor.rgb = applyFog(outColor.rgb, t, rd, normalize(uSunDirView));\n"
         "  }\n"
         "  gl_FragColor = outColor;\n"
         "}\n";
@@ -665,7 +712,8 @@ uint32_t GetStrideFromFVF(DWORD fvf) {
 RenderDevice::RenderDevice()
     : fvf(0), mInitialized(false), mAlphaBlendEnabled(false), mSrcBlend(BLEND_SRCALPHA), mDstBlend(BLEND_INVSRCALPHA),
       mShaderProgram(0), mDynamicVbo(0), mUniformMvp(-1), mUniformTexture(-1), mUniformTexMatrix(-1),
-      mUniformColorMode(-1) {
+      mUniformColorMode(-1), mUniformModelView(-1), mUniformFogEnabled(-1), mUniformFogDensity(-1),
+      mUniformFogSkyColor(-1), mUniformSunDirView(-1) {
     for (int i = 0; i < 8; i++) {
         colorop[i] = 0;
         colorarg1[i] = 0;
@@ -699,6 +747,11 @@ bool RenderDevice::EnsureInitialized() {
     mUniformTexture = STGL(GetUniformLocation)(mShaderProgram, "uTexture");
     mUniformTexMatrix = STGL(GetUniformLocation)(mShaderProgram, "uTexMatrix");
     mUniformColorMode = STGL(GetUniformLocation)(mShaderProgram, "uColorMode");
+    mUniformModelView = STGL(GetUniformLocation)(mShaderProgram, "uModelView");
+    mUniformFogEnabled = STGL(GetUniformLocation)(mShaderProgram, "uFogEnabled");
+    mUniformFogDensity = STGL(GetUniformLocation)(mShaderProgram, "uFogDensity");
+    mUniformFogSkyColor = STGL(GetUniformLocation)(mShaderProgram, "uFogSkyColor");
+    mUniformSunDirView = STGL(GetUniformLocation)(mShaderProgram, "uSunDirView");
 
     STGL(GenBuffers)(1, &mDynamicVbo);
     if (!mDynamicVbo) {
@@ -708,6 +761,10 @@ bool RenderDevice::EnsureInitialized() {
 
     STGL(UseProgram)(mShaderProgram);
     STGL(Uniform1i)(mUniformTexture, 0);
+    if (mUniformFogDensity >= 0)
+        STGL(Uniform1f)(mUniformFogDensity, FOG_DENSITY);
+    if (mUniformFogEnabled >= 0)
+        STGL(Uniform1i)(mUniformFogEnabled, 0);
     STGL(UseProgram)(0);
 
     mInitialized = true;
@@ -889,14 +946,31 @@ HRESULT RenderDevice::DrawPrimitive(PrimitiveType PrimitiveType, UINT StartVerte
         hasVertexColor = false;
 
     const int colorMode = ResolveColorMode(hasTextureCoords, hasVertexColor);
-    const bool transformed = ((fvf & FVF_XYZRHW) == 0);
-    const glm::mat4 mvp = transformed ? (mInv * mProj * mView * mWorld) : BuildScreenProjection();
+    const bool worldSpaceVertices = ((fvf & FVF_XYZRHW) == 0) && ((fvf & FVF_XYZ) != 0);
+    const glm::mat4 mvp = worldSpaceVertices ? (mInv * mProj * mView * mWorld) : BuildScreenProjection();
+    const glm::mat4 modelView = mView * mWorld;
+
+    const DWORD skyPacked = SCRGB(SKY_COLOUR_INDEX);
+    const glm::vec3 fogSkyColor(((skyPacked >> 0) & 0xff) / 255.0f, ((skyPacked >> 8) & 0xff) / 255.0f,
+                                ((skyPacked >> 16) & 0xff) / 255.0f);
+    const glm::vec3 sunWorldDir(0.0f, INV_SQRT2, INV_SQRT2);
+    glm::vec3 sunViewDir = glm::vec3(mView * glm::vec4(sunWorldDir, 0.0f));
+    const float sunViewLen = glm::length(sunViewDir);
+    if (sunViewLen > 0.0001f)
+        sunViewDir /= sunViewLen;
+    else
+        sunViewDir = glm::vec3(0.0f, INV_SQRT2, INV_SQRT2);
 
     STGL(UseProgram)(mShaderProgram);
     STGL(ActiveTexture)(GL_TEXTURE0);
     STGL(UniformMatrix4fv)(mUniformMvp, 1, GL_FALSE, glm::value_ptr(mvp));
+    STGL(UniformMatrix4fv)(mUniformModelView, 1, GL_FALSE, glm::value_ptr(modelView));
     STGL(UniformMatrix4fv)(mUniformTexMatrix, 1, GL_FALSE, glm::value_ptr(mText));
     STGL(Uniform1i)(mUniformColorMode, colorMode);
+    STGL(Uniform1i)(mUniformFogEnabled, worldSpaceVertices ? 1 : 0);
+    STGL(Uniform1f)(mUniformFogDensity, FOG_DENSITY);
+    STGL(Uniform3f)(mUniformFogSkyColor, fogSkyColor.x, fogSkyColor.y, fogSkyColor.z);
+    STGL(Uniform3f)(mUniformSunDirView, sunViewDir.x, sunViewDir.y, sunViewDir.z);
 
     STGL(EnableVertexAttribArray)(ATTRIB_POSITION);
     STGL(VertexAttribPointer)(ATTRIB_POSITION, layout.positionComponents, GL_FLOAT, GL_FALSE, (GLsizei)streamStride,

@@ -895,6 +895,11 @@ class RenderDevice {
     GLint mUniformTexture;
     GLint mUniformTexMatrix;
     GLint mUniformColorMode;
+    GLint mUniformModelView;
+    GLint mUniformFogEnabled;
+    GLint mUniformFogDensity;
+    GLint mUniformFogSkyColor;
+    GLint mUniformSunDirView;
 };
 
 class TextHelper {
