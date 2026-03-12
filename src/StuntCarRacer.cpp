@@ -1309,6 +1309,46 @@ extern long new_damage;
 extern long opponentsID;
 extern WCHAR* opponentNames[];
 
+static void DrawGameplayCockpitHud(TextHelper& txtHelper, long lapValue, long opponentsDistance) {
+    WCHAR lapText[3] = L"  ";
+    if (lapValue > 0)
+        StringCchPrintf(lapText, 3, L"%d", lapValue);
+
+    float textScale = GetTextScale();
+    float base_width = wideScreen ? static_cast<float>(BASE_WIDTH_WIDESCREEN) : static_cast<float>(BASE_WIDTH_STANDARD);
+    GLint vp[4];
+    glGetIntegerv(GL_VIEWPORT, vp);
+    float projWidth = (vp[3] > 0) ? (480.0f * static_cast<float>(vp[2]) / static_cast<float>(vp[3])) : base_width;
+    float cockpitOffsetX = (projWidth - base_width) * 0.5f;
+
+    txtHelper.SetForegroundColor(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+
+    // Boost text - positioned in top dashboard box
+    txtHelper.SetInsertionPos(static_cast<int>((88 + (wideScreen ? 80 : 0)) * textScale + cockpitOffsetX),
+                              static_cast<int>(BASE_HEIGHT - 48.0f));
+    {
+        std::wstringstream ss;
+        ss << L"L" << lapText << L"       B" << std::setw(2) << std::setfill(L'0') << boostReserve;
+        txtHelper.DrawFormattedTextLine(ss.str());
+    }
+
+    // Distance text - positioned in bottom dashboard box
+    txtHelper.SetInsertionPos(static_cast<int>((84 + (wideScreen ? 80 : 0)) * textScale + cockpitOffsetX),
+                              static_cast<int>(BASE_HEIGHT - 25.0f));
+    {
+        std::wstringstream ss;
+        ss << L"        " << std::showpos << std::setw(5) << std::setfill(L'0') << opponentsDistance;
+        txtHelper.DrawFormattedTextLine(ss.str());
+    }
+}
+
+static void DrawGameplayCockpitHudForInstance(TextHelper& txtHelper, long carBehaviourInstanceIndex, long lapValue,
+                                              long opponentsDistance) {
+    const long previousInstance = PushCarBehaviourInstance(carBehaviourInstanceIndex);
+    DrawGameplayCockpitHud(txtHelper, lapValue, opponentsDistance);
+    PopCarBehaviourInstance(previousInstance);
+}
+
 void RenderText(double fTime) {
     // The helper object simply helps keep track of text position, and color
     // and then it calls pFont->DrawText( m_pSprite, strMsg, -1, &rc, DT_NOCLIP, m_clr );
@@ -1373,7 +1413,6 @@ void RenderText(double fTime) {
     case GAME_OVER:
         // Show car speed, damage and race details
         const SurfaceDesc* pd3dsdBackBuffer = GetBackBufferSurfaceDesc();
-        WCHAR lapText[3] = L"  ";
         // Output opponent's name for four seconds at race start
         if (((GetTimeSeconds() - gameStartTime) < 4.0) && (opponentsID != NO_OPPONENT)) {
             txtHelper.SetInsertionPos(static_cast<int>((250 + (wideScreen ? 80 : 0)) * textScale),
@@ -1384,39 +1423,8 @@ void RenderText(double fTime) {
                 txtHelper.DrawFormattedTextLine(ss.str());
             }
         }
-        txtHelper.SetInsertionPos(static_cast<int>((2 + (wideScreen ? 80 : 0)) * textScale),
-                                  static_cast<int>(pd3dsdBackBuffer->Height - 15 * 2 * textScale));
-        if (lapNumber[PLAYER] > 0)
-            StringCchPrintf(lapText, 3, L"%d", lapNumber[PLAYER]);
-        txtHelper.SetForegroundColor(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-
-        // Position text using base 800x480 coordinates, then scale
-        float base_width = wideScreen ? static_cast<float>(BASE_WIDTH_WIDESCREEN) : static_cast<float>(BASE_WIDTH_STANDARD);
-        float base_height = static_cast<float>(BASE_HEIGHT);
-        float scaleY = static_cast<float>(pd3dsdBackBuffer->Height) / base_height;
-        // Match cockpit centering: ortho X is 0..projWidth, cockpit content is base_width wide and centered
-        GLint vp[4];
-        glGetIntegerv(GL_VIEWPORT, vp);
-        float projWidth = (vp[3] > 0) ? (480.0f * static_cast<float>(vp[2]) / static_cast<float>(vp[3])) : base_width;
-        float cockpitOffsetX = (projWidth - base_width) * 0.5f;
-
-        // Boost text - positioned in top dashboard box
-        txtHelper.SetInsertionPos(static_cast<int>((88 + (wideScreen ? 80 : 0)) * textScale + cockpitOffsetX),
-                                  static_cast<int>((BASE_HEIGHT - 48.0f) * scaleY));
-        {
-            std::wstringstream ss;
-            ss << L"L" << lapText << L"       B" << std::setw(2) << std::setfill(L'0') << boostReserve;
-            txtHelper.DrawFormattedTextLine(ss.str());
-        }
-        // Distance text - positioned in bottom dashboard box
-        txtHelper.SetInsertionPos(static_cast<int>((84 + (wideScreen ? 80 : 0)) * textScale + cockpitOffsetX),
-                                  static_cast<int>((BASE_HEIGHT - 25.0f) * scaleY));
-        {
-            std::wstringstream ss;
-            ss << L"        " << std::showpos << std::setw(5) << std::setfill(L'0')
-               << CalculateOpponentsDistance();
-            txtHelper.DrawFormattedTextLine(ss.str());
-        }
+        if (!bMultiplayerMode)
+            DrawGameplayCockpitHudForInstance(txtHelper, 0, lapNumber[PLAYER], CalculateOpponentsDistance());
 
         txtHelper.End();
 
@@ -1598,6 +1606,11 @@ void CALLBACK OnFrameRender(RenderDevice* pDevice, double fTime, float fElapsedT
             glGetIntegerv(GL_VIEWPORT, fullVp);
             const int lowerHeight = fullVp[3] / 2;
             const int upperHeight = fullVp[3] - lowerHeight;
+            const long opponentsDistanceFromPlayer1 = CalculateOpponentsDistance();
+            float textScale = GetTextScale();
+            static TextHelper splitHudTextHelper(g_pFont, g_pSprite, 15);
+            splitHudTextHelper.SetDisplaySize(static_cast<int>(15 * textScale));
+            splitHudTextHelper.Begin();
 
             float alpha = (g_physicsStepSeconds > 0.0) ? static_cast<float>(g_logicAccumulator / g_physicsStepSeconds) : 0.0f;
             if (alpha < 0.0f)
@@ -1640,11 +1653,14 @@ void CALLBACK OnFrameRender(RenderDevice* pDevice, double fTime, float fElapsedT
             RenderGameplayViewport(pDevice, fullVp[0], fullVp[1] + lowerHeight, fullVp[2], upperHeight, topViewX,
                                    topViewY, topViewZ, topViewXa, topViewYa, topViewZa, bOutsideView, true,
                                    !bOutsideView, 0);
+            DrawGameplayCockpitHudForInstance(splitHudTextHelper, 0, lapNumber[PLAYER], opponentsDistanceFromPlayer1);
 
             // Player 2 (bottom): always draw player 1; draw player 2 only when outside view.
             RenderGameplayViewport(pDevice, fullVp[0], fullVp[1], fullVp[2], lowerHeight, bottomViewX, bottomViewY,
                                    bottomViewZ, bottomViewXa, bottomViewYa, bottomViewZa, true,
                                    bOutsideView, !bOutsideView, 1);
+            DrawGameplayCockpitHudForInstance(splitHudTextHelper, 1, lapNumber[OPPONENT], -opponentsDistanceFromPlayer1);
+            splitHudTextHelper.End();
 
             // Restore full viewport for text rendering and subsequent frames.
             glViewport(fullVp[0], fullVp[1], fullVp[2], fullVp[3]);
