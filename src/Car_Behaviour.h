@@ -32,6 +32,17 @@
 
 typedef enum { OPPONENT = 0, PLAYER, NUM_CARS } CarType;
 
+typedef struct {
+    long piece;
+    long distanceIntoSection;
+    long roadXPosition;
+    long rearWheelSurfaceXPosition;
+    long playerY;
+    long playerZSpeed;
+    long touchingRoad;
+    bool dropStartDone;
+} CarRoadCollisionState;
+
 /*    ===================== */
 /*    Structure definitions */
 /*    ===================== */
@@ -45,7 +56,9 @@ extern void CarBehaviourForInstance(long instanceIndex, DWORD input, long* x, lo
                                     long* y_angle, long* z_angle, float stepSeconds);
 extern long PushCarBehaviourInstance(long instanceIndex);
 extern void PopCarBehaviourInstance(long previousInstance);
+extern long GetActiveCarBehaviourInstance(void);
 extern void SetCarRoadStateForInstance(long instanceIndex, long piece, long distanceIntoSection);
+extern bool GetCarRoadCollisionStateForInstance(long instanceIndex, CarRoadCollisionState* state_out);
 
 extern void CarBehaviour(DWORD input, long* x, long* y, long* z, long* x_angle, long* y_angle, long* z_angle,
                         float stepSeconds);

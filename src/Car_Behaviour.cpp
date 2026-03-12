@@ -3614,6 +3614,28 @@ void PopCarBehaviourInstance(long previousInstance) {
     }
 }
 
+long GetActiveCarBehaviourInstance(void) {
+    EnsureCarBehaviourInstanceStorage();
+    return g_activeCarBehaviourInstance;
+}
+
+bool GetCarRoadCollisionStateForInstance(long instanceIndex, CarRoadCollisionState* state_out) {
+    if (!state_out)
+        return false;
+
+    const long previousInstance = PushCarBehaviourInstance(instanceIndex);
+    state_out->piece = player_current_piece;
+    state_out->distanceIntoSection = players_distance_into_section;
+    state_out->roadXPosition = players_road_x_position;
+    state_out->rearWheelSurfaceXPosition = rear_wheel_surface_x_position;
+    state_out->playerY = player_y;
+    state_out->playerZSpeed = player_z_speed;
+    state_out->touchingRoad = touching_road;
+    state_out->dropStartDone = (drop_start_done != FALSE);
+    PopCarBehaviourInstance(previousInstance);
+    return true;
+}
+
 void SetCarRoadStateForInstance(long instanceIndex, long piece, long distanceIntoSection) {
     if (piece < 0 || piece >= NumTrackPieces)
         return;

@@ -18,6 +18,9 @@ extern void OpponentBehaviour(long* x, long* y, long* z, float* x_angle, float* 
                               bool bOpponentPaused, float stepSeconds);
 
 extern void CarToCarCollision(void);
+extern void QueueMultiplayerCarCollisionImpulse(long instanceIndex, long xAcceleration, long yAcceleration,
+                                                long zAcceleration, bool collided);
+extern void ClearMultiplayerCarCollisionImpulses(void);
 
 extern long CalculateIfWinning(long start_finish_piece);
 

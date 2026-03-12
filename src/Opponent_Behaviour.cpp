@@ -349,6 +349,7 @@ extern TRACK_PIECE Track[MAX_PIECES_PER_TRACK];
 extern long Track_Map[NUM_TRACK_CUBES][NUM_TRACK_CUBES]; // [x][z]
 extern long NumTrackPieces;
 extern long PlayersStartPiece;
+extern bool bMultiplayerMode;
 
 //#define USE_ROAD_Y
 #define NEW_OPP_METHOD
@@ -1782,6 +1783,10 @@ static long B1bbc3 = 0, B1bbeb = 0;
 static long x_difference, player_to_right;
 static long cars_collided;
 static long car_to_car_x_acceleration, car_to_car_y_acceleration, car_to_car_z_acceleration;
+static long mp_car_to_car_x_acceleration[2] = {0, 0};
+static long mp_car_to_car_y_acceleration[2] = {0, 0};
+static long mp_car_to_car_z_acceleration[2] = {0, 0};
+static bool mp_cars_collided[2] = {false, false};
 
 // player's values
 extern long touching_road;
@@ -1898,8 +1903,63 @@ static long cars_collided_delay = 0;
 // player's values
 extern long car_collision_x_acceleration, car_collision_y_acceleration, car_collision_z_acceleration;
 
+void QueueMultiplayerCarCollisionImpulse(long instanceIndex, long xAcceleration, long yAcceleration, long zAcceleration,
+                                         bool collided) {
+    if (instanceIndex < 0 || instanceIndex > 1)
+        return;
+
+    mp_car_to_car_x_acceleration[instanceIndex] = xAcceleration;
+    mp_car_to_car_y_acceleration[instanceIndex] = yAcceleration;
+    mp_car_to_car_z_acceleration[instanceIndex] = zAcceleration;
+    mp_cars_collided[instanceIndex] = collided;
+}
+
+void ClearMultiplayerCarCollisionImpulses(void) {
+    for (long i = 0; i < 2; ++i) {
+        mp_car_to_car_x_acceleration[i] = 0;
+        mp_car_to_car_y_acceleration[i] = 0;
+        mp_car_to_car_z_acceleration[i] = 0;
+        mp_cars_collided[i] = false;
+    }
+}
+
 void CarToCarCollision(void) {
     long d0;
+
+    if (bMultiplayerMode) {
+        const long activeInstance = GetActiveCarBehaviourInstance();
+        if (activeInstance < 0 || activeInstance > 1)
+            return;
+
+        if ((activeInstance == 0) && (cars_collided_delay > 0))
+            --cars_collided_delay;
+
+        if (!mp_cars_collided[activeInstance])
+            return;
+
+        car_collision_x_acceleration += mp_car_to_car_x_acceleration[activeInstance];
+        car_collision_y_acceleration += mp_car_to_car_y_acceleration[activeInstance];
+        car_collision_z_acceleration += mp_car_to_car_z_acceleration[activeInstance];
+
+        mp_car_to_car_x_acceleration[activeInstance] = 0;
+        mp_car_to_car_y_acceleration[activeInstance] = 0;
+        mp_car_to_car_z_acceleration[activeInstance] = 0;
+        mp_cars_collided[activeInstance] = false;
+
+        if (activeInstance != 0)
+            return;
+
+        if (cars_collided_delay > 0)
+            return;
+
+        if (IsAudioEnabled() && HitCarSoundBuffer && !HitCarSoundBuffer->IsPlaying()) {
+            HitCarSoundBuffer->SetCurrentPosition(0);
+            HitCarSoundBuffer->Play(NULL, NULL, NULL); // not looping
+        }
+
+        cars_collided_delay = 5;
+        return;
+    }
 
     if (cars_collided_delay > 0)
         --cars_collided_delay;

@@ -1421,6 +1421,85 @@ static long CalculateTwoPlayerDistanceForHudFromPlayer1(void) {
     return dist;
 }
 
+static void QueueMultiplayerCarCollisionImpulsesForStep(void) {
+    ClearMultiplayerCarCollisionImpulses();
+
+    if (!bMultiplayerMode || GameMode != GAME_IN_PROGRESS || bPaused || bPlayerPaused || bOpponentPaused)
+        return;
+    if (TrackID == NO_TRACK || NumTrackPieces <= 0)
+        return;
+
+    CarRoadCollisionState p1 = {};
+    CarRoadCollisionState p2 = {};
+    if (!GetCarRoadCollisionStateForInstance(0, &p1) || !GetCarRoadCollisionStateForInstance(1, &p2))
+        return;
+
+    if (!p1.dropStartDone || !p2.dropStartDone)
+        return;
+    if (p1.piece < 0 || p1.piece >= NumTrackPieces || p2.piece < 0 || p2.piece >= NumTrackPieces)
+        return;
+
+    static long distancesAroundRoad[MAX_PIECES_PER_TRACK] = {0};
+    static long totalRoadDistance = 0;
+    static long previousTrackID = NO_TRACK;
+
+    if (previousTrackID != TrackID) {
+        long distance = 0;
+        for (long piece = 0; piece < NumTrackPieces; ++piece) {
+            distancesAroundRoad[piece] = distance << 5;
+            distance += Track[piece].numSegments;
+        }
+        totalRoadDistance = distance << 5;
+        previousTrackID = TrackID;
+    }
+    if (totalRoadDistance <= 0)
+        return;
+
+    long diff = ((p2.distanceIntoSection - p1.distanceIntoSection) >> 3);
+    diff += distancesAroundRoad[p2.piece] - distancesAroundRoad[p1.piece];
+
+    long absDiff = abs(diff);
+    if (absDiff > totalRoadDistance)
+        absDiff %= totalRoadDistance;
+
+    long opposite = totalRoadDistance - absDiff;
+    long smallestDistanceBetweenPlayers = opposite;
+    if (absDiff < opposite) {
+        smallestDistanceBetweenPlayers = absDiff;
+        diff = -diff;
+    }
+
+    long xDelta = (p2.roadXPosition & 0xff) - p1.rearWheelSurfaceXPosition;
+    long xDifference = abs(xDelta);
+    if (xDifference >= 45)
+        return;
+
+    if ((smallestDistanceBetweenPlayers & 0xff) > 8)
+        return;
+
+    long yImpulse = 0;
+    if (!(p1.touchingRoad && p2.touchingRoad)) {
+        long d4 = (p1.playerY >> 11) - (p2.playerY >> 11);
+        long d0 = d4 + 40;
+        if (d0 < 0)
+            d0 = -d0;
+        if (d0 >= 192)
+            return;
+
+        long d3 = 256 - d0;
+        if (d4 < 0)
+            d3 = -d3;
+        yImpulse = d3 << 4;
+    }
+
+    long xImpulse = (xDelta < 0) ? WALL_CONTACT_IMPULSE : -WALL_CONTACT_IMPULSE;
+    long zImpulse = (p2.playerZSpeed - p1.playerZSpeed) >> 1;
+    zImpulse += (zImpulse < 0) ? -3 : 3;
+
+    QueueMultiplayerCarCollisionImpulse(0, xImpulse, yImpulse, zImpulse, true);
+    QueueMultiplayerCarCollisionImpulse(1, -xImpulse, -yImpulse, -zImpulse, true);
+}
+
 static void DrawGameplayCockpitHud(TextHelper& txtHelper, long lapValue, long opponentsDistance) {
     WCHAR lapText[3] = L"  ";
     if (lapValue > 0)
@@ -2403,6 +2482,7 @@ static bool RunFrame(double frameTime, bool allowQuit) {
 
         // --- Input sampling (once per physics step) ---
         SampleControlsForLogicSubstep(lastInput);
+        QueueMultiplayerCarCollisionImpulsesForStep();
 
         // --- Body-dynamics integrator (once per physics step, decoupled from game logic) ---
         if ((GameMode == TRACK_MENU) || (GameMode == TRACK_PREVIEW) || (GameMode == GAME_IN_PROGRESS)) {
