@@ -3632,6 +3632,7 @@ bool GetCarRoadCollisionStateForInstance(long instanceIndex, CarRoadCollisionSta
     state_out->playerZSpeed = player_z_speed;
     state_out->touchingRoad = touching_road;
     state_out->dropStartDone = (drop_start_done != FALSE);
+    state_out->offMapStatus = off_map_status;
     PopCarBehaviourInstance(previousInstance);
     return true;
 }

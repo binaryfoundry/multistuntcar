@@ -41,6 +41,7 @@ typedef struct {
     long playerZSpeed;
     long touchingRoad;
     bool dropStartDone;
+    long offMapStatus;
 } CarRoadCollisionState;
 
 /*    ===================== */

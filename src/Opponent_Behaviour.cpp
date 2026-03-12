@@ -550,7 +550,8 @@ void UpdatePlayerShadowForInstance(long instanceIndex) {
     CarShadowState& shadow = player_shadow_state[idx];
 
     CarRoadCollisionState roadState{};
-    if (!GetCarRoadCollisionStateForInstance(idx, &roadState) || !roadState.dropStartDone) {
+    if (!GetCarRoadCollisionStateForInstance(idx, &roadState) || !roadState.dropStartDone ||
+        (roadState.offMapStatus != 0)) {
         shadow.visible = false;
         shadow.have_prev = false;
         return;
