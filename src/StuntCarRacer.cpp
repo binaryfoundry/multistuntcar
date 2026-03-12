@@ -80,6 +80,17 @@ IDirectSoundBuffer8* EngineSoundBuffers[8] = {NULL};
 
 GpuTexture* g_pAtlas = NULL;
 
+/* Debug builds default to muted audio. Flip this to true to quickly re-enable while debugging. */
+#if defined(DEBUG) || defined(_DEBUG)
+static const bool kEnableAudioInDebug = false;
+#else
+static const bool kEnableAudioInDebug = true;
+#endif
+
+bool IsAudioEnabled(void) {
+    return kEnableAudioInDebug;
+}
+
 int wideScreen = 0;
 
 static bool bFrameMoved = FALSE;
@@ -964,9 +975,18 @@ static void SetOpponentsCarWorldTransform(void) {
 }
 
 static void RestartEngineAudioBuffers(bool resetEngineModel) {
+    if (!IsAudioEnabled()) {
+        engineSoundPlaying = FALSE;
+        if (resetEngineModel)
+            ResetEngineAudioState();
+        return;
+    }
+
     for (int i = 0; i < 8; ++i) {
-        EngineSoundBuffers[i]->Stop();
-        EngineSoundBuffers[i]->SetCurrentPosition(0);
+        if (EngineSoundBuffers[i]) {
+            EngineSoundBuffers[i]->Stop();
+            EngineSoundBuffers[i]->SetCurrentPosition(0);
+        }
     }
     engineSoundPlaying = FALSE;
     if (resetEngineModel)
@@ -2653,7 +2673,8 @@ int main(int argc, const char** argv) {
     // Disable texture mapping by default (only DrawTrack() enables it)
     pDevice.SetTextureStageState(0, TSS_COLOROP, TOP_DISABLE);
 
-    sound_init();
+    if (IsAudioEnabled())
+        sound_init();
 
     CreateFonts();
     LoadTextures();
@@ -2665,8 +2686,10 @@ int main(int argc, const char** argv) {
 
     CreateBuffers(&pDevice);
 
-    DSInit();
-    DSSetMode();
+    if (IsAudioEnabled()) {
+        DSInit();
+        DSSetMode();
+    }
 
     /* Clear to sky colour so any unfilled pixels (e.g. right edge) match the backdrop */
     {
@@ -2705,7 +2728,8 @@ int main(int argc, const char** argv) {
 #ifdef USE_SDL2
     CloseAllGamepads();
 #endif
-    sound_destroy();
+    if (IsAudioEnabled())
+        sound_destroy();
     TTF_Quit();
     SDL_Quit();
 

@@ -53,5 +53,7 @@ extern long VALUE1, VALUE2, VALUE3;
 
 /** Call when the car is placed back on the track so engine audio restarts on next input (keyboard or gamepad). */
 extern void RequestRestartEngineAudioOnFirstInput(void);
+/** Global audio toggle (false in debug by default). */
+extern bool IsAudioEnabled(void);
 
 #endif /* _STUNT_CAR_RACER */

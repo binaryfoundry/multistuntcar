@@ -1868,14 +1868,16 @@ static void CarCollisionDetection(void) {
     if (amiga_volume > 64)
         amiga_volume = 64;
 
-    GroundedSoundBuffer->SetVolume(AmigaVolumeToMixerGain(amiga_volume));
+    if (IsAudioEnabled() && GroundedSoundBuffer) {
+        GroundedSoundBuffer->SetVolume(AmigaVolumeToMixerGain(amiga_volume));
 
-    if (grounded_delay == 0) {
-        if (!GroundedSoundBuffer->IsPlaying()) {
-            GroundedSoundBuffer->SetCurrentPosition(0);
-            GroundedSoundBuffer->Play(NULL, NULL, NULL); // not looping
+        if (grounded_delay == 0) {
+            if (!GroundedSoundBuffer->IsPlaying()) {
+                GroundedSoundBuffer->SetCurrentPosition(0);
+                GroundedSoundBuffer->Play(NULL, NULL, NULL); // not looping
+            }
+            grounded_delay = 5;
         }
-        grounded_delay = 5;
     }
 
     return;
@@ -3771,24 +3773,33 @@ fwe3    move.w    sprite.DMA.value,dmacon+custom
         pendingEngineSoundIndexCount = 0;
     }
 
+    const bool audioEnabled = IsAudioEnabled() && (engineSoundBuffers != NULL);
+    const bool currentBufferReady = audioEnabled && (engineSoundBuffers[engineSoundIndex] != NULL);
+
     if (engineSoundIndex != lastEngineSoundIndex) {
         // Stop the old engine sound
-        if (lastEngineSoundIndex >= 0) {
+        if (audioEnabled && lastEngineSoundIndex >= 0 && engineSoundBuffers[lastEngineSoundIndex]) {
             engineSoundBuffers[lastEngineSoundIndex]->Stop();
         }
 
         // Start the new engine sound from the beginning. Cursor carry between
         // different sample banks can drift in the SDL backend and add lag.
         currentPlayCursor = 0;
-        engineSoundBuffers[engineSoundIndex]->SetCurrentPosition(currentPlayCursor);
-        engineSoundBuffers[engineSoundIndex]->Play(NULL, NULL, DSBPLAY_LOOPING);
+        if (currentBufferReady) {
+            engineSoundBuffers[engineSoundIndex]->SetCurrentPosition(currentPlayCursor);
+            engineSoundBuffers[engineSoundIndex]->Play(NULL, NULL, DSBPLAY_LOOPING);
+        }
 
         lastEngineSoundIndex = engineSoundIndex;
-        engineSoundPlaying = TRUE;
+        engineSoundPlaying = currentBufferReady ? TRUE : FALSE;
     }
 
     // Set the frequency of the current engine sound
-    engineSoundBuffers[engineSoundIndex]->SetFrequency(freq);
+    if (currentBufferReady) {
+        engineSoundBuffers[engineSoundIndex]->SetFrequency(freq);
+    } else {
+        engineSoundPlaying = FALSE;
+    }
 }
 
 void FramesWheelsEngine(IDirectSoundBuffer8* engineSoundBuffers[]) {
@@ -3906,6 +3917,8 @@ void DrawOtherGraphics(void) {
 
 static void DrawDustClouds(void) {
     // currently just plays the sound effect
+    if (!IsAudioEnabled() || !OffRoadSoundBuffer)
+        return;
 
     int p = rand();
     p &= 0x1c;
@@ -3931,6 +3944,8 @@ static void DrawDustClouds(void) {
 
 static void DrawSparks(void) {
     int p;
+    if (!IsAudioEnabled() || !WreckSoundBuffer)
+        return;
 
     // currently just plays the sound effect
 
@@ -4016,7 +4031,7 @@ void UpdateDamage(void) {
     smashed_countdown = 69;
 
     // Play smash sound effect
-    if (!SmashSoundBuffer->IsPlaying()) {
+    if (IsAudioEnabled() && SmashSoundBuffer && !SmashSoundBuffer->IsPlaying()) {
         SmashSoundBuffer->SetCurrentPosition(0);
         SmashSoundBuffer->Play(NULL, NULL, NULL); // not looping
     }
@@ -4030,10 +4045,12 @@ PlayCreakSound:
     if (amiga_volume > 64)
         amiga_volume = 64;
 
-    CreakSoundBuffer->SetVolume(AmigaVolumeToMixerGain(amiga_volume));
-    if (!CreakSoundBuffer->IsPlaying()) {
-        CreakSoundBuffer->SetCurrentPosition(0);
-        CreakSoundBuffer->Play(NULL, NULL, NULL); // not looping
+    if (IsAudioEnabled() && CreakSoundBuffer) {
+        CreakSoundBuffer->SetVolume(AmigaVolumeToMixerGain(amiga_volume));
+        if (!CreakSoundBuffer->IsPlaying()) {
+            CreakSoundBuffer->SetCurrentPosition(0);
+            CreakSoundBuffer->Play(NULL, NULL, NULL); // not looping
+        }
     }
     return;
 }

@@ -1945,7 +1945,7 @@ void CarToCarCollision(void) {
     if (cars_collided_delay > 0)
         return;
 
-    if (!HitCarSoundBuffer->IsPlaying()) {
+    if (IsAudioEnabled() && HitCarSoundBuffer && !HitCarSoundBuffer->IsPlaying()) {
         HitCarSoundBuffer->SetCurrentPosition(0);
         HitCarSoundBuffer->Play(NULL, NULL, NULL); // not looping
     }
