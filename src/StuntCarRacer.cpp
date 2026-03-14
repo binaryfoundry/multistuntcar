@@ -1229,23 +1229,30 @@ static void HandleTrackMenu(TextHelper& txtHelper) {
     long track_number;
     float textScale = GetTextScale();
     const SurfaceDesc* pd3dsdBackBuffer = GetBackBufferSurfaceDesc();
+    int titleSize = static_cast<int>(30 * textScale);
+    int regularSize = static_cast<int>(15 * textScale);
+    if (titleSize < 1)
+        titleSize = 1;
+    if (regularSize < 1)
+        regularSize = 1;
 
-    txtHelper.SetDisplaySize(static_cast<int>(30 * textScale));
-    txtHelper.SetInsertionPos(static_cast<int>((2 + (wideScreen ? 10 : 0)) * textScale),
-                              static_cast<int>(15 * 4 * textScale));
-    txtHelper.DrawTextLine(L"Stunt Car Racer Remake - Alpha Version - WIP");
-    txtHelper.SetDisplaySize(static_cast<int>(15 * textScale));
-    txtHelper.SetInsertionPos(static_cast<int>((2 + (wideScreen ? 10 : 0)) * textScale),
-                              static_cast<int>(15 * 9 * textScale));
+    const int titleY = static_cast<int>(15 * 3 * textScale);
+    const int subtitleY = titleY + titleSize;
+    const int trackY = static_cast<int>(15 * 9 * textScale);
+    const int bottomInfoY = static_cast<int>(pd3dsdBackBuffer->Height - 15 * 8 * textScale);
+
+    txtHelper.SetDisplaySize(titleSize);
+    DrawCenteredTextLine(txtHelper, L"Multi Stunt Car", titleY);
+
+    txtHelper.SetDisplaySize(regularSize);
+    DrawCenteredTextLine(txtHelper, L"Alpha Version - WIP", subtitleY);
     {
         std::wstringstream ss;
         ss << L"Track: " << (TrackID == NO_TRACK ? L"None" : GetTrackName(TrackID));
-        txtHelper.DrawFormattedTextLine(ss.str());
+        DrawCenteredTextLine(txtHelper, ss.str(), trackY);
     }
-    txtHelper.SetInsertionPos(static_cast<int>((2 + (wideScreen ? 10 : 0)) * textScale),
-                              static_cast<int>(pd3dsdBackBuffer->Height - 15 * 8 * textScale));
-    txtHelper.DrawTextLine(L"Left/Right or D-pad = change track.  Enter or A = select.  Escape = quit.");
-    txtHelper.DrawTextLine(L"'L' to switch Super League On/Off");
+    DrawCenteredTextLine(txtHelper, L"Left/Right or D-pad = change track.  Enter or A = select.  Escape = quit.", bottomInfoY);
+    DrawCenteredTextLine(txtHelper, L"'L' to switch Super League On/Off", bottomInfoY + regularSize);
 
     const bool goPrev = (keyPress == SDLK_LEFT);
     const bool goNext = (keyPress == SDLK_RIGHT);
