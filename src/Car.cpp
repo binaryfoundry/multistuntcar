@@ -255,6 +255,7 @@ static int old_speedbar = -1;
 static int old_leftwheel = -1, old_rightwheel = -1;
 
 extern GpuTexture* g_pAtlas;
+extern GpuTexture* g_pCockpitAtlas;
 extern long front_left_amount_below_road, front_right_amount_below_road;
 extern long leftwheel_angle, rightwheel_angle;
 extern long boost_activated;
@@ -291,10 +292,14 @@ void FreeCockpitVertexBuffer(void) {
 extern long CalculateDisplaySpeed(void);
 
 static int cockpit_vtx = 0;
+static float g_cockpitAtlasUOffset = 0.0f;
+static const float kCockpitAtlasUShift = 100.0f / 1024.0f;
 static void AddQuad(TRANSFORMEDTEXVERTEX* pVertices, float x1, float y1, float x2, float y2, float z, int idx, int revX,
                     float w) {
     float u1 = (revX) ? atlas_tx2[idx] : atlas_tx1[idx], v1 = atlas_ty1[idx];
     float u2 = (revX) ? atlas_tx1[idx] : atlas_tx2[idx], v2 = atlas_ty2[idx];
+    u1 += g_cockpitAtlasUOffset;
+    u2 += g_cockpitAtlasUOffset;
     if (w != 1.0f) {
         u2 = u1 + (u2 - u1) * w;
     }
@@ -357,6 +362,9 @@ void DrawCockpit(RenderDevice* pDevice) {
     glGetIntegerv(GL_VIEWPORT, vp);
     float projWidth = (vp[3] > 0) ? (480.0f * static_cast<float>(vp[2]) / static_cast<float>(vp[3])) : base_width;
     float offsetX = (projWidth - base_width) * 0.5f;
+
+    const bool useCockpitAtlas = (g_pCockpitAtlas != NULL);
+    g_cockpitAtlasUOffset = useCockpitAtlas ? kCockpitAtlasUShift : 0.0f;
 
     // Prepare Cockpit drawing
     TRANSFORMEDTEXVERTEX* pVertices;
@@ -491,7 +499,8 @@ void DrawCockpit(RenderDevice* pDevice) {
     pDevice->SetSamplerState(0, SAMP_ADDRESSV, TADDRESS_CLAMP);
 #endif
     // Draw Cockpit
-    pDevice->SetTexture(0, g_pAtlas);
+    GpuTexture* cockpitTexture = useCockpitAtlas ? g_pCockpitAtlas : g_pAtlas;
+    pDevice->SetTexture(0, cockpitTexture);
     // Cockpit should use point filtering (pixel sharp), not bilinear.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

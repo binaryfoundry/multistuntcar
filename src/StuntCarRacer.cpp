@@ -79,6 +79,7 @@ IDirectSoundBuffer8* OffRoadSoundBuffer = NULL;
 IDirectSoundBuffer8* EngineSoundBuffers[8] = {NULL};
 
 GpuTexture* g_pAtlas = NULL;
+GpuTexture* g_pCockpitAtlas = NULL;
 
 /* Debug builds default to muted audio. Flip this to true to quickly re-enable while debugging. */
 #if defined(DEBUG) || defined(_DEBUG)
@@ -604,7 +605,10 @@ void CloseFonts() {
 void LoadTextures() {
     if (!g_pAtlas)
         g_pAtlas = new GpuTexture();
+    if (!g_pCockpitAtlas)
+        g_pCockpitAtlas = new GpuTexture();
     g_pAtlas->LoadTexture("data/Bitmap/atlas.png");
+    g_pCockpitAtlas->LoadTexture("data/Bitmap/atlas2.png");
     InitAtlasCoord();
     printf("Texture loaded\n");
 }
