@@ -1641,15 +1641,26 @@ void RenderText(double fTime) {
     case GAME_OVER:
         // Show car speed, damage and race details
         const SurfaceDesc* pd3dsdBackBuffer = GetBackBufferSurfaceDesc();
-        // Output opponent's name for four seconds at race start
-        if (((GetTimeSeconds() - gameStartTime) < 4.0) && (opponentsID != NO_OPPONENT)) {
-            txtHelper.SetInsertionPos(static_cast<int>((250 + (wideScreen ? 80 : 0)) * textScale),
-                                      static_cast<int>(pd3dsdBackBuffer->Height - 15 * 20 * textScale));
-            {
-                std::wstringstream ss;
-                ss << L"Opponent: " << opponentNames[opponentsID];
-                txtHelper.DrawFormattedTextLine(ss.str());
-            }
+        // Output opponent's name for four seconds at race start (single-player and faux multiplayer only).
+        if (!bMultiplayerMode && ((GetTimeSeconds() - gameStartTime) < 4.0) && (opponentsID != NO_OPPONENT)) {
+            std::wstring opponentName = opponentNames[opponentsID] ? opponentNames[opponentsID] : L"";
+            while (!opponentName.empty() && opponentName.back() == L' ')
+                opponentName.pop_back();
+
+            std::wstringstream ss;
+            ss << L"Opponent: " << opponentName;
+            const std::wstring opponentLabel = ss.str();
+
+            GLint vp[4];
+            glGetIntegerv(GL_VIEWPORT, vp);
+            const float projectionWidth = (vp[3] > 0) ? (480.0f * static_cast<float>(vp[2]) / static_cast<float>(vp[3]))
+                                                       : static_cast<float>(pd3dsdBackBuffer->Width);
+            int centeredX = static_cast<int>((projectionWidth - txtHelper.MeasureTextWidth(opponentLabel.c_str())) * 0.5f);
+            if (centeredX < 0)
+                centeredX = 0;
+
+            txtHelper.SetInsertionPos(centeredX, static_cast<int>(pd3dsdBackBuffer->Height - 15 * 20 * textScale));
+            txtHelper.DrawFormattedTextLine(opponentLabel);
         }
         if (!IsSplitScreenMode())
             DrawGameplayCockpitHudForInstance(txtHelper, 0, lapNumber[PLAYER], CalculateOpponentsDistance());

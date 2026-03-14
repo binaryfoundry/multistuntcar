@@ -1292,6 +1292,19 @@ void TextHelper::SetDisplaySize(int size) {
     m_displayScale = (m_fontsize > 0) ? (static_cast<float>(size) / static_cast<float>(m_fontsize)) : 1.0f;
 }
 
+int TextHelper::MeasureTextWidth(const wchar_t* line) const {
+    if (!line)
+        return 0;
+
+    float width = 0.0f;
+    for (uint32_t i = 0; line[i] != 0; ++i) {
+        const unsigned char ch = static_cast<unsigned char>(line[i] & 0xff);
+        width += static_cast<float>(m_as[ch]) * m_displayScale;
+    }
+
+    return static_cast<int>(width + 0.5f);
+}
+
 void TextHelper::DrawTextLine(const wchar_t* line) {
     if (!line) {
         m_posy += m_size;

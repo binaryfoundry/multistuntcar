@@ -911,6 +911,7 @@ class TextHelper {
     ~TextHelper();
     void SetInsertionPos(int x, int y);
     void SetDisplaySize(int size);  // update display size (e.g. when window scale changes)
+    int MeasureTextWidth(const wchar_t* line) const;
     void DrawTextLine(const wchar_t* line);
     void DrawFormattedTextLine(const std::wstring& line);
     void Begin() {};
