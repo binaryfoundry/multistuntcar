@@ -3021,7 +3021,7 @@ void em_main_loop() {
 int GL_MSAA = 0;
 int main(int argc, const char** argv) {
     char maintitle[50] = {0};
-    sprintf(maintitle, "StuntCarHD v%d.%02d.%02d", V_MAJOR, V_MINOR, V_PATCH);
+    sprintf(maintitle, "MultiStuntCar v%d.%02d.%02d", V_MAJOR, V_MINOR, V_PATCH);
     printf("%s\n", maintitle);
     // Run from the executable directory so relative assets (data/Bitmap, data/Sounds, data/Tracks) resolve.
     char* basePath = SDL_GetBasePath();
