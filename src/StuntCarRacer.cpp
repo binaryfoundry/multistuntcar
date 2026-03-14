@@ -150,11 +150,13 @@ static bool IsSplitScreenMode(void) {
 
 static float GetPlayerCarRenderYOffset(void) {
     if (IsSplitScreenMode())
-        return VCAR_HEIGHT / 4.0f;
+        return (VCAR_HEIGHT / 4.0f) + (VCAR_HEIGHT / 24.0f);
     return VCAR_HEIGHT / 3.0f;
 }
 
 static float GetOpponentCarRenderYOffset(void) {
+    if (IsSplitScreenMode())
+        return (VCAR_HEIGHT / 4.0f) + (VCAR_HEIGHT / 24.0f);
     return VCAR_HEIGHT / 4.0f;
 }
 

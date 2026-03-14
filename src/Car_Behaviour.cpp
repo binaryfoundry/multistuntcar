@@ -540,6 +540,9 @@ static void CarBehaviourActiveInstance(DWORD input, long* x, long* y, long* z, l
 
 /* Minimum height above ground (same scale as player_y / road_height) to prevent crash penetration. */
 #define MIN_HEIGHT_ABOVE_GROUND 0x80
+/* Render-only lift to stop body clipping under heavy suspension compression. */
+#define RENDER_ANTI_PENETRATION_START 0x120
+#define RENDER_ANTI_PENETRATION_MAX   0x280
 
 void LimitViewpointY(long* y) {
     long saved_player_z_speed = player_z_speed;
@@ -628,6 +631,16 @@ static long RoundToLong(double value) {
 }
 
 static void ProjectCarRenderPositionToRoadNormal(long* x, long* y, long* z) {
+    long maxDifference = front_left_road_height - front_left_actual_height;
+    long difference = front_right_road_height - front_right_actual_height;
+    if (difference > maxDifference)
+        maxDifference = difference;
+    difference = rear_road_height - rear_actual_height;
+    if (difference > maxDifference)
+        maxDifference = difference;
+    if (maxDifference < 0)
+        maxDifference = 0;
+
     if ((front_left_road_height == OFF_ROAD_HEIGHT) || (front_right_road_height == OFF_ROAD_HEIGHT) ||
         (rear_road_height == OFF_ROAD_HEIGHT))
         return;
@@ -677,13 +690,32 @@ static void ProjectCarRenderPositionToRoadNormal(long* x, long* y, long* z) {
     const double py = static_cast<double>(*y);
     const double pz = static_cast<double>(*z);
     const double signedNumerator = ((px - flx) * nx) + ((py - fly) * ny) + ((pz - flz) * nz);
-    if (signedNumerator >= 0.0)
+    bool projectedToPlane = false;
+    if (signedNumerator < 0.0) {
+        const double scale = -signedNumerator / nLenSq;
+        *x += RoundToLong(nx * scale);
+        *y += RoundToLong(ny * scale);
+        *z += RoundToLong(nz * scale);
+        projectedToPlane = true;
+    }
+
+    if (!projectedToPlane)
         return;
 
-    const double scale = -signedNumerator / nLenSq;
-    *x += RoundToLong(nx * scale);
-    *y += RoundToLong(ny * scale);
-    *z += RoundToLong(nz * scale);
+    if (maxDifference <= 0)
+        return;
+
+    if (maxDifference <= RENDER_ANTI_PENETRATION_START)
+        return;
+
+    const long excessCompression = maxDifference - RENDER_ANTI_PENETRATION_START;
+    long liftHeight = (excessCompression >> 1);
+    if (liftHeight > RENDER_ANTI_PENETRATION_MAX)
+        liftHeight = RENDER_ANTI_PENETRATION_MAX;
+    const long liftY = (liftHeight << 8) * LOCAL_Y_FACTOR;
+
+    // Apply extra anti-penetration lift vertically so shadow alignment stays stable.
+    *y -= liftY;
 }
 
 /*
