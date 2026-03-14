@@ -1491,12 +1491,14 @@ static void QueueMultiplayerCarCollisionImpulsesForStep(void) {
         diff = -diff;
     }
 
-    long xDelta = (p2.roadXPosition & 0xff) - p1.rearWheelSurfaceXPosition;
+    // Compare like-for-like lateral positions (both in surface-space 0..255).
+    long xDelta = p2.rearWheelSurfaceXPosition - p1.rearWheelSurfaceXPosition;
     long xDifference = abs(xDelta);
     if (xDifference >= 45)
         return;
 
-    if ((smallestDistanceBetweenPlayers & 0xff) > 8)
+    // Use full wrapped road distance, not just low byte, to avoid false hits far away.
+    if (smallestDistanceBetweenPlayers > 8)
         return;
 
     long yImpulse = 0;
