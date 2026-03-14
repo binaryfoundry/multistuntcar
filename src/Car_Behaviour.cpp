@@ -517,6 +517,9 @@ static void CarBehaviourActiveInstance(DWORD input, long* x, long* y, long* z, l
 
     CarControl(input);
     CarMovement();
+    // Keep per-instance road-position values current for HUD/shadows, including true 2-player mode
+    // where OpponentBehaviour() is not called.
+    CalculatePlayersRoadPosition();
     UpdateEngineRevs();
 
     if (touching_road)
