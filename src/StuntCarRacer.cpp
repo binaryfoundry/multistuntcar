@@ -143,6 +143,8 @@ bool bOutsideView = FALSE;
 long engineSoundPlaying = FALSE;
 double gameStartTime, gameEndTime;
 bool bSuperLeague = FALSE;
+/* Split-screen orientation: true = horizontal (top/bottom), false = vertical (left/right). */
+static bool g_splitScreenHorizontal = true;
 
 static bool IsSplitScreenMode(void) {
     return bMultiplayerMode || bFauxMultiplayerMode;
@@ -1855,8 +1857,29 @@ void CALLBACK OnFrameRender(RenderDevice* pDevice, double fTime, float fElapsedT
         if (IsSplitScreenMode() && (GameMode == GAME_IN_PROGRESS || GameMode == GAME_OVER)) {
             GLint fullVp[4];
             glGetIntegerv(GL_VIEWPORT, fullVp);
-            const int lowerHeight = fullVp[3] / 2;
-            const int upperHeight = fullVp[3] - lowerHeight;
+            int player1ViewportX = fullVp[0];
+            int player1ViewportY = fullVp[1];
+            int player1ViewportW = fullVp[2];
+            int player1ViewportH = fullVp[3];
+            int player2ViewportX = fullVp[0];
+            int player2ViewportY = fullVp[1];
+            int player2ViewportW = fullVp[2];
+            int player2ViewportH = fullVp[3];
+            if (g_splitScreenHorizontal) {
+                const int lowerHeight = fullVp[3] / 2;
+                const int upperHeight = fullVp[3] - lowerHeight;
+                player1ViewportY = fullVp[1] + lowerHeight;
+                player1ViewportH = upperHeight;
+                player2ViewportY = fullVp[1];
+                player2ViewportH = lowerHeight;
+            } else {
+                const int leftWidth = fullVp[2] / 2;
+                const int rightWidth = fullVp[2] - leftWidth;
+                player1ViewportX = fullVp[0];
+                player1ViewportW = leftWidth;
+                player2ViewportX = fullVp[0] + leftWidth;
+                player2ViewportW = rightWidth;
+            }
             const long opponentsDistanceFromPlayer1 =
                 bMultiplayerMode ? CalculateTwoPlayerDistanceForHudFromPlayer1() : CalculateOpponentsDistance();
             float textScale = GetTextScale();
@@ -1895,16 +1918,16 @@ void CALLBACK OnFrameRender(RenderDevice* pDevice, double fTime, float fElapsedT
             DrawBackdrop(render_backdrop_viewpoint_y, render_backdrop_viewpoint_x_angle, render_backdrop_viewpoint_y_angle,
                          render_backdrop_viewpoint_z_angle);
 
-            // Player 1 (top): always draw player 2; draw player 1 only when outside view.
+            // Player 1 viewport: always draw player 2; draw player 1 only when outside view.
             PrepareInterpolatedShadowsForView(0, alpha);
-            RenderGameplayViewport(pDevice, fullVp[0], fullVp[1] + lowerHeight, fullVp[2], upperHeight, topViewX,
+            RenderGameplayViewport(pDevice, player1ViewportX, player1ViewportY, player1ViewportW, player1ViewportH, topViewX,
                                    topViewY, topViewZ, topViewXa, topViewYa, topViewZa, bOutsideView, true,
                                    !bOutsideView, 0);
             DrawGameplayCockpitHudForInstance(splitHudTextHelper, 0, lapNumber[PLAYER], opponentsDistanceFromPlayer1);
 
-            // Player 2 (bottom): always draw player 1; draw player 2 only when outside view.
+            // Player 2 viewport: always draw player 1; draw player 2 only when outside view.
             PrepareInterpolatedShadowsForView(1, alpha);
-            RenderGameplayViewport(pDevice, fullVp[0], fullVp[1], fullVp[2], lowerHeight, bottomViewX, bottomViewY,
+            RenderGameplayViewport(pDevice, player2ViewportX, player2ViewportY, player2ViewportW, player2ViewportH, bottomViewX, bottomViewY,
                                    bottomViewZ, bottomViewXa, bottomViewYa, bottomViewZa, true,
                                    bOutsideView, !bOutsideView, 1);
             DrawGameplayCockpitHudForInstance(splitHudTextHelper, 1, lapNumber[OPPONENT], -opponentsDistanceFromPlayer1);
