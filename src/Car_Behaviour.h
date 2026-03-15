@@ -61,6 +61,7 @@ extern long GetActiveCarBehaviourInstance(void);
 extern void SetCarRoadStateForInstance(long instanceIndex, long piece, long distanceIntoSection);
 extern bool GetCarRoadCollisionStateForInstance(long instanceIndex, CarRoadCollisionState* state_out);
 extern bool IsCarWreckedForInstance(long instanceIndex);
+extern void ForceCarWreckForInstance(long instanceIndex);
 
 extern void CarBehaviour(DWORD input, long* x, long* y, long* z, long* x_angle, long* y_angle, long* z_angle,
                         float stepSeconds);

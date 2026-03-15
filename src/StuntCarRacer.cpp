@@ -2541,6 +2541,12 @@ bool process_events() {
                 bNewGame = TRUE; // for testing to try stopping car positioning bug
                 break;
 
+            case SDLK_w:
+                // Debug/testing shortcut: force player 1 through the same wreck state as full damage.
+                if (GameMode == GAME_IN_PROGRESS)
+                    ForceCarWreckForInstance(0);
+                break;
+
             // controls for Car Behaviour, Player 1 (Left/Right = track change when in track menu)
             case SDLK_LEFT:
                 if (GameMode != TRACK_MENU)

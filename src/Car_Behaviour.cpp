@@ -3755,6 +3755,24 @@ bool IsCarWreckedForInstance(long instanceIndex) {
     return wrecked;
 }
 
+void ForceCarWreckForInstance(long instanceIndex) {
+    const long previousInstance = PushCarBehaviourInstance(instanceIndex);
+
+    // Original path:
+    //  - damage.line clamps to 0xEF before branching to car.is.wrecked
+    //  - car.is.wrecked sets wreck.wheel.height.reduction+2 = 2 (0x200 as a long)
+    // See reference/StuntCarRacer.s around damage.line and car.is.wrecked.
+    front_left_damage = 0xef;
+    front_right_damage = 0xef;
+    rear_damage = 0xef;
+    new_damage = 0xef;
+    wreck_wheel_height_reduction = 0x200;
+    damaged = 0;
+    g_logicTickDamaged = 0;
+
+    PopCarBehaviourInstance(previousInstance);
+}
+
 void SetCarRoadStateForInstance(long instanceIndex, long piece, long distanceIntoSection) {
     if (piece < 0 || piece >= NumTrackPieces)
         return;
