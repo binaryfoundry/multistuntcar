@@ -290,7 +290,12 @@
                 return pc;
             }
 
+            function markGuestConnected() {
+                if (state.role !== 'host') return;
+                if (typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+            }
             function handleGuestInput(msg) {
+                markGuestConnected();
                 if (msg.type === 'key') {
                     var key = String(msg.key || '');
                     if (!key) return;

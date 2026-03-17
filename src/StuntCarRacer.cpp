@@ -2329,14 +2329,14 @@ static void RefreshCombinedInput(void) {
 
 #ifdef __EMSCRIPTEN__
         if (g_webrtcGuestConnected) {
-            /* WebRTC guest connected: all host keys and all host pads = player 1 (top); all remote = player 2 (bottom). */
-            DWORD hostCombined = g_keyboardInput;
+            /* Strict separation: only local devices → player 1 (top); only remote → player 2 (bottom). No mixing. */
+            DWORD localOnly = g_keyboardInput;
             for (int i = 0; i < MAX_LOCAL_PLAYERS; ++i)
-                hostCombined |= g_gamepadInput[i];
-            lastInput = hostCombined;
-            g_player2Input = g_remotePlayer2Input;
+                localOnly |= g_gamepadInput[i];
+            lastInput = localOnly;           /* player 1 (top) = host keys + host pads only */
+            g_player2Input = g_remotePlayer2Input;  /* player 2 (bottom) = remote keys + remote pads only */
         } else {
-            /* No WebRTC guest: existing behaviour (starter device = player 1, rest = player 2). */
+            /* No WebRTC guest: starter device = player 1, rest = player 2. */
             lastInput = player1Input;
             g_player2Input = player2Input;
         }
