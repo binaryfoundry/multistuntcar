@@ -315,26 +315,43 @@
 
             var VOLUME_STORAGE_KEY = 'stuntcar-webrtc-volume';
 
+            // setupWebRTCAudioRouting: called once the host's SDL2 audio node is ready.
+            // Inserts a ChannelSplitter so the stereo output (L=P1, R=P2) is split:
+            //   left  → GainNode → audioContext.destination  (host hears P1 only)
+            //   right → MediaStreamDestinationNode           (guest receives P2 only)
+            function setupWebRTCAudioRouting() {
+                if (state.role !== 'host') return false;
+                var SDL2 = (typeof Module !== 'undefined') ? Module.SDL2 : null;
+                if (!SDL2 || !SDL2.audioContext || !SDL2.audio || !SDL2.audio.scriptProcessorNode) return false;
+                if (SDL2.audio._webrtcRoutingDone) return true;
+                var ctx = SDL2.audioContext;
+                var sp = SDL2.audio.scriptProcessorNode;
+                try { sp.disconnect(); } catch (e) {}
+                var splitter = ctx.createChannelSplitter(2);
+                sp.connect(splitter);
+                var hostGain = ctx.createGain();
+                splitter.connect(hostGain, 0, 0);
+                hostGain.connect(ctx.destination);
+                if (webrtcVolumeSlider) hostGain.gain.value = parseInt(webrtcVolumeSlider.value, 10) / 100;
+                SDL2.audio.gainNode = hostGain;
+                var p2Dest = ctx.createMediaStreamDestination();
+                splitter.connect(p2Dest, 1, 0);
+                state.p2AudioStream = p2Dest.stream;
+                SDL2.audio._webrtcRoutingDone = true;
+                return true;
+            }
+
             function applyVolume(value01) {
                 if (state.role === 'guest') {
                     if (remoteVideo) remoteVideo.volume = value01;
                     return;
                 }
-                if (typeof Module === 'undefined' || !Module.SDL2 || !Module.SDL2.audioContext) return;
-                var audio = Module.SDL2.audio;
-                if (!audio) return;
-                var sp = audio.scriptProcessorNode;
-                if (!sp) return;
-                var ctx = Module.SDL2.audioContext;
-                if (!audio.gainNode) {
-                    try {
-                        sp.disconnect();
-                        audio.gainNode = ctx.createGain();
-                        sp.connect(audio.gainNode);
-                        audio.gainNode.connect(ctx.destination);
-                    } catch (e) { return; }
+                var SDL2 = (typeof Module !== 'undefined') ? Module.SDL2 : null;
+                if (!SDL2 || !SDL2.audioContext || !SDL2.audio) return;
+                var audio = SDL2.audio;
+                if (audio.gainNode) {
+                    audio.gainNode.gain.value = value01;
                 }
-                audio.gainNode.gain.value = value01;
             }
 
             if (webrtcVolumeSlider) {
@@ -400,6 +417,9 @@
                 pc: null,
                 dc: null,
                 streamAdded: false,
+                captureStream: null,
+                p2AudioStream: null,
+                p2AudioTrackAdded: false,
                 gamepadLoopHandle: null
             };
 
@@ -572,9 +592,18 @@
                 if (!state.streamAdded && canvas) {
                     try {
                         const stream = canvas.captureStream(30);
+                        state.captureStream = stream;
                         for (var i = 0; i < stream.getTracks().length; i++) state.pc.addTrack(stream.getTracks()[i], stream);
                         state.streamAdded = true;
                     } catch (err) { console.error('captureStream failed', err); }
+                }
+                // Add P2 audio track (right channel from channel splitter) for the guest to hear.
+                if (!state.p2AudioTrackAdded && state.captureStream && state.p2AudioStream) {
+                    var audioTracks = state.p2AudioStream.getAudioTracks();
+                    for (var t = 0; t < audioTracks.length; t++) {
+                        try { state.pc.addTrack(audioTracks[t], state.captureStream); } catch (e) {}
+                    }
+                    state.p2AudioTrackAdded = true;
                 }
                 if (!state.dc) {
                     state.dc = state.pc.createDataChannel('inputs');
@@ -649,13 +678,14 @@
                 setupPeerConnection();
                 await connectSignaling(state.room, state.peerId);
                 setWebRTCStatus('Hosting — share link with guest', 'hosting');
+                // Poll until SDL2 audio is ready, then set up the channel-split routing
+                // (P1 left → host speakers, P2 right → guest stream) and apply saved volume.
                 var hostVolumeTries = 0;
                 var hostVolumeInterval = setInterval(function() {
-                    if (webrtcVolumeSlider && state.role === 'host') {
-                        var v = parseInt(webrtcVolumeSlider.value, 10) / 100;
-                        applyVolume(v);
-                    }
-                    if ((typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audio && Module.SDL2.audio.gainNode) || ++hostVolumeTries > 40) {
+                    if (state.role === 'host' && setupWebRTCAudioRouting()) {
+                        if (webrtcVolumeSlider) applyVolume(parseInt(webrtcVolumeSlider.value, 10) / 100);
+                        clearInterval(hostVolumeInterval);
+                    } else if (++hostVolumeTries > 40) {
                         clearInterval(hostVolumeInterval);
                     }
                 }, 500);

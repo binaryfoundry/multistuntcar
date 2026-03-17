@@ -2919,34 +2919,53 @@ static bool RunFrame(double frameTime, bool allowQuit) {
         }
     }
 
-    // Option 3: in split-screen gameplay, pan P1 left / P2 right and reduce both volumes so the mix doesn't clash.
+    // Stereo separation in split-screen: P1 panned left, P2 right.
+    // In WebRTC remote mode the JS layer splits the stereo output via a ChannelSplitter and
+    // routes the left channel (P1) to the host's speakers and the right channel (P2) to a
+    // MediaStreamDestinationNode sent to the guest.  Full L/R pan is therefore required in
+    // that mode; a mild ±4000 pan is used for local split-screen so it sounds natural.
     {
-        static bool g_engineMixIsSplitScreen = false;
+        static bool s_prevSplitScreen = false;
+#ifdef __EMSCRIPTEN__
+        const bool webrtcActive = g_webrtcGuestConnected;
+#else
+        const bool webrtcActive = false;
+#endif
+        static bool s_prevWebRTC = false;
         const bool splitScreenGameplay = IsSplitScreenMode() && (GameMode == GAME_IN_PROGRESS);
-        if (splitScreenGameplay && !g_engineMixIsSplitScreen) {
-            for (int i = 0; i < 8; ++i) {
-                if (EngineSoundBuffers[i]) {
-                    EngineSoundBuffers[i]->SetPan(-4000);
-                    EngineSoundBuffers[i]->SetVolume(AmigaVolumeToMixerGain(48 / 3));
+        if (splitScreenGameplay != s_prevSplitScreen || webrtcActive != s_prevWebRTC) {
+            if (splitScreenGameplay) {
+                const long p1Pan = webrtcActive ? DSBPAN_LEFT : -4000;
+                const long p2Pan = webrtcActive ? DSBPAN_RIGHT : 4000;
+                const long vol = AmigaVolumeToMixerGain(48 / 3);
+                for (int i = 0; i < 8; ++i) {
+                    if (EngineSoundBuffers[i])  { EngineSoundBuffers[i]->SetPan(p1Pan);  EngineSoundBuffers[i]->SetVolume(vol); }
+                    if (EngineSoundBuffers2[i]) { EngineSoundBuffers2[i]->SetPan(p2Pan); EngineSoundBuffers2[i]->SetVolume(vol); }
                 }
-                if (EngineSoundBuffers2[i]) {
-                    EngineSoundBuffers2[i]->SetPan(4000);
-                    EngineSoundBuffers2[i]->SetVolume(AmigaVolumeToMixerGain(48 / 3));
+                // In WebRTC mode, pan all P1 non-engine sounds fully left so the JS channel
+                // splitter cleanly separates player audio; restore original pans otherwise.
+                const long p1SfxPan = webrtcActive ? DSBPAN_LEFT : DSBPAN_RIGHT;
+                const long smashPan  = webrtcActive ? DSBPAN_LEFT : DSBPAN_LEFT;
+                if (WreckSoundBuffer)    WreckSoundBuffer->SetPan(p1SfxPan);
+                if (GroundedSoundBuffer) GroundedSoundBuffer->SetPan(p1SfxPan);
+                if (CreakSoundBuffer)    CreakSoundBuffer->SetPan(p1SfxPan);
+                if (SmashSoundBuffer)    SmashSoundBuffer->SetPan(smashPan);
+                if (OffRoadSoundBuffer)  OffRoadSoundBuffer->SetPan(p1SfxPan);
+                if (HitCarSoundBuffer)   HitCarSoundBuffer->SetPan(p1SfxPan);
+            } else {
+                for (int i = 0; i < 8; ++i) {
+                    if (EngineSoundBuffers[i])  { EngineSoundBuffers[i]->SetPan(DSBPAN_CENTER);  EngineSoundBuffers[i]->SetVolume(AmigaVolumeToMixerGain(48 / 2)); }
+                    if (EngineSoundBuffers2[i]) { EngineSoundBuffers2[i]->SetPan(DSBPAN_CENTER); EngineSoundBuffers2[i]->SetVolume(AmigaVolumeToMixerGain(48 / 2)); }
                 }
+                if (WreckSoundBuffer)    WreckSoundBuffer->SetPan(DSBPAN_RIGHT);
+                if (GroundedSoundBuffer) GroundedSoundBuffer->SetPan(DSBPAN_RIGHT);
+                if (CreakSoundBuffer)    CreakSoundBuffer->SetPan(DSBPAN_RIGHT);
+                if (SmashSoundBuffer)    SmashSoundBuffer->SetPan(DSBPAN_LEFT);
+                if (OffRoadSoundBuffer)  OffRoadSoundBuffer->SetPan(DSBPAN_RIGHT);
+                if (HitCarSoundBuffer)   HitCarSoundBuffer->SetPan(DSBPAN_RIGHT);
             }
-            g_engineMixIsSplitScreen = true;
-        } else if (!splitScreenGameplay && g_engineMixIsSplitScreen) {
-            for (int i = 0; i < 8; ++i) {
-                if (EngineSoundBuffers[i]) {
-                    EngineSoundBuffers[i]->SetPan(DSBPAN_CENTER);
-                    EngineSoundBuffers[i]->SetVolume(AmigaVolumeToMixerGain(48 / 2));
-                }
-                if (EngineSoundBuffers2[i]) {
-                    EngineSoundBuffers2[i]->SetPan(DSBPAN_CENTER);
-                    EngineSoundBuffers2[i]->SetVolume(AmigaVolumeToMixerGain(48 / 2));
-                }
-            }
-            g_engineMixIsSplitScreen = false;
+            s_prevSplitScreen = splitScreenGameplay;
+            s_prevWebRTC = webrtcActive;
         }
     }
 
