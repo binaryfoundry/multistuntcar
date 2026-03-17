@@ -2,7 +2,7 @@
 
 This is a fork of *StuntCarRemake* with two player and reworked physics for uncapped frame rate.
 
-Play: https://binaryfoundry.github.io/stuntcarhd/
+Play: https://retro-foundry.github.io/multistuntcar/
 
 ## Current Project Layout
 
