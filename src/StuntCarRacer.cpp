@@ -2372,12 +2372,16 @@ static void RefreshCombinedInput(void) {
              *
              * Gamepad note: the browser Gamepad API exposes the same physical gamepad to every tab
              * on the machine, so SDL will see the guest's gamepad even on the host page.
-             * Guard: only use local gamepads if this tab currently has browser focus.
-             * When the guest tab is active (no focus here), ignore local gamepads so the guest's
-             * gamepad exclusively drives player 2 via WebRTC and does not also drive player 1. */
+             * Guard: only use local gamepads when this tab is visible (Page Visibility API).
+             * When the user switches to the guest tab the host tab becomes hidden, so we ignore
+             * local gamepads and the guest's gamepad drives only player 2 via WebRTC.
+             * We use visibilityState instead of document.hasFocus() because hasFocus() can
+             * remain false when the tab is focused but the user is using a gamepad. */
             DWORD localOnly = g_keyboardInput;
-            const int hostTabHasFocus = EM_ASM_INT({ return document.hasFocus() ? 1 : 0; });
-            if (hostTabHasFocus) {
+            const int hostTabVisible = EM_ASM_INT({
+                return (typeof document.visibilityState !== 'undefined' && document.visibilityState === 'visible') ? 1 : 0;
+            });
+            if (hostTabVisible) {
                 for (int i = 0; i < MAX_LOCAL_PLAYERS; ++i)
                     localOnly |= g_gamepadInput[i];
             }
