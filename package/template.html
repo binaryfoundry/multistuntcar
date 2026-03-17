@@ -200,6 +200,23 @@
                 gamepads: new Map()
             };
             var KEY_P1_LEFT = 1, KEY_P1_RIGHT = 2, KEY_P1_ACCEL = 4, KEY_P1_BRAKE = 8, KEY_P1_BOOST = 16;
+            function btnPressed(bt, i) {
+                if (!bt || i < 0 || i >= (bt.length || 0)) return false;
+                var b = bt[i];
+                if (b == null) return false;
+                if (typeof b === 'object') return !!(b.pressed || (typeof b.value === 'number' && b.value > 0.5));
+                return b === true || b === 1;
+            }
+            function axisAtLeast(ax, i, threshold) {
+                if (!ax || i < 0 || i >= (ax.length || 0)) return false;
+                var v = ax[i];
+                return typeof v === 'number' && v >= threshold;
+            }
+            function axisAtMost(ax, i, threshold) {
+                if (!ax || i < 0 || i >= (ax.length || 0)) return false;
+                var v = ax[i];
+                return typeof v === 'number' && v <= threshold;
+            }
             function guestInputToPlayer2Dword() {
                 var d = 0;
                 var k = guestInput.keys;
@@ -211,11 +228,11 @@
                 var pads = guestInput.gamepads;
                 pads.forEach(function(p) {
                     var ax = p.axes || [], bt = p.buttons || [];
-                    if (ax[0] <= -0.15 || (bt[14] && bt[14].pressed)) d |= KEY_P1_LEFT;
-                    if (ax[0] >= 0.15 || (bt[15] && bt[15].pressed)) d |= KEY_P1_RIGHT;
-                    if (ax[5] >= 0.15 || (bt[12] && bt[12].pressed)) d |= KEY_P1_ACCEL;
-                    if (ax[4] >= 0.15 || (bt[13] && bt[13].pressed) || (bt[1] && bt[1].pressed)) d |= KEY_P1_BRAKE;
-                    if ((bt[0] && bt[0].pressed) || (bt[2] && bt[2].pressed) || (bt[5] && bt[5].pressed)) d |= KEY_P1_BOOST;
+                    if (axisAtMost(ax, 0, -0.15) || btnPressed(bt, 14)) d |= KEY_P1_LEFT;
+                    if (axisAtLeast(ax, 0, 0.15) || btnPressed(bt, 15)) d |= KEY_P1_RIGHT;
+                    if (axisAtLeast(ax, 5, 0.15) || btnPressed(bt, 7) || btnPressed(bt, 12)) d |= KEY_P1_ACCEL;
+                    if (axisAtLeast(ax, 4, 0.15) || btnPressed(bt, 6) || btnPressed(bt, 13) || btnPressed(bt, 1)) d |= KEY_P1_BRAKE;
+                    if (btnPressed(bt, 0) || btnPressed(bt, 2) || btnPressed(bt, 5)) d |= KEY_P1_BOOST;
                 });
                 return d;
             }
