@@ -2327,14 +2327,21 @@ static void RefreshCombinedInput(void) {
             }
         }
 
-        lastInput = player1Input;
 #ifdef __EMSCRIPTEN__
-        /* When a WebRTC guest is connected, player 2 is controlled only by remote (keyboard + gamepad). */
-        if (g_webrtcGuestConnected)
+        if (g_webrtcGuestConnected) {
+            /* WebRTC guest connected: all host keys and all host pads = player 1 (top); all remote = player 2 (bottom). */
+            DWORD hostCombined = g_keyboardInput;
+            for (int i = 0; i < MAX_LOCAL_PLAYERS; ++i)
+                hostCombined |= g_gamepadInput[i];
+            lastInput = hostCombined;
             g_player2Input = g_remotePlayer2Input;
-        else
+        } else {
+            /* No WebRTC guest: existing behaviour (starter device = player 1, rest = player 2). */
+            lastInput = player1Input;
             g_player2Input = player2Input;
+        }
 #else
+        lastInput = player1Input;
         g_player2Input = player2Input;
 #endif
     } else {
