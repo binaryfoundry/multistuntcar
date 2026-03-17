@@ -2329,7 +2329,11 @@ static void RefreshCombinedInput(void) {
 
         lastInput = player1Input;
 #ifdef __EMSCRIPTEN__
-        g_player2Input = g_webrtcGuestConnected ? g_remotePlayer2Input : player2Input;
+        /* When a WebRTC guest is connected, player 2 is controlled only by remote (keyboard + gamepad). */
+        if (g_webrtcGuestConnected)
+            g_player2Input = g_remotePlayer2Input;
+        else
+            g_player2Input = player2Input;
 #else
         g_player2Input = player2Input;
 #endif
