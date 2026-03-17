@@ -70,6 +70,88 @@
       .credit-overlay a:hover .icon-gh { color: #e6edf3; }
       .credit-overlay .icon-x { color: #a0a0a8; }
       .credit-overlay a:hover .icon-x { color: #f5f5f5; }
+      /* WebRTC multiplayer: top-right floating status + join link (host) */
+      .webrtc-overlay {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 9999;
+        min-width: 200px;
+        max-width: min(420px, calc(100vw - 24px));
+        padding: 12px 16px;
+        background: rgba(18, 18, 22, 0.85);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+      }
+      .webrtc-overlay__title {
+        color: #8b949e;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+      }
+      .webrtc-overlay__status {
+        color: #e6edf3;
+        margin-bottom: 10px;
+        font-weight: 500;
+      }
+      .webrtc-overlay__status::before {
+        content: '';
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: middle;
+        background: #8b949e;
+      }
+      .webrtc-overlay__status.connected::before { background: #3fb950; }
+      .webrtc-overlay__status.hosting::before { background: #d29922; }
+      .webrtc-overlay__status.error::before { background: #f85149; }
+      .webrtc-overlay__link-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .webrtc-overlay__input {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 10px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        color: #c9d1d9;
+        font-size: 13px;
+        font-family: inherit;
+      }
+      .webrtc-overlay__input:focus {
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .webrtc-overlay__copy {
+        flex-shrink: 0;
+        padding: 8px 14px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        color: #c9d1d9;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color 0.2s, background 0.2s, border-color 0.2s;
+      }
+      .webrtc-overlay__copy:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .webrtc-overlay__copy:active { background: rgba(255, 255, 255, 0.08); }
+      .webrtc-overlay__copy.copied { color: #3fb950; border-color: #3fb950; }
+      body.webrtc-join-mode .webrtc-overlay .webrtc-overlay__link-row { display: none !important; }
       /* Join mode: video only, scaled to page with aspect ratio maintained; no game UI */
       body.webrtc-join-mode .emscripten { display: none !important; }
       body.webrtc-join-mode #webrtcRemoteVideo {
@@ -97,6 +179,14 @@
       <div class="loading">Loading...</div>
     </div>
     <video id="webrtcRemoteVideo" autoplay playsinline style="display:none;pointer-events:none;"></video>
+    <div class="webrtc-overlay" id="webrtcOverlay" aria-label="WebRTC multiplayer">
+      <div class="webrtc-overlay__title">Multiplayer join link</div>
+      <div class="webrtc-overlay__status" id="webrtcStatus">Connecting…</div>
+      <div class="webrtc-overlay__link-row" id="webrtcLinkRow" style="display:none">
+        <input type="text" readonly class="webrtc-overlay__input" id="webrtcJoinLink" value="" />
+        <button type="button" class="webrtc-overlay__copy" id="webrtcCopyBtn">Copy</button>
+      </div>
+    </div>
     <div class="credit-overlay" aria-label="Links">
       <a href="https://github.com/binaryfoundry/multistuntcar" target="_blank" rel="noopener noreferrer" title="GitHub – MultiStuntCar">
         <svg class="icon icon-gh" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -169,6 +259,31 @@
             const SIGNAL_BASE = "https://tiny-signal.retrofoundry.workers.dev";
             const canvas = document.getElementById('canvas');
             const remoteVideo = document.getElementById('webrtcRemoteVideo');
+            const webrtcStatusEl = document.getElementById('webrtcStatus');
+            const webrtcLinkRow = document.getElementById('webrtcLinkRow');
+            const webrtcJoinLinkInput = document.getElementById('webrtcJoinLink');
+            const webrtcCopyBtn = document.getElementById('webrtcCopyBtn');
+
+            function setWebRTCStatus(text, className) {
+                if (!webrtcStatusEl) return;
+                webrtcStatusEl.textContent = text;
+                webrtcStatusEl.className = 'webrtc-overlay__status' + (className ? ' ' + className : '');
+            }
+
+            if (webrtcCopyBtn && webrtcJoinLinkInput) {
+                webrtcCopyBtn.addEventListener('click', function() {
+                    var url = webrtcJoinLinkInput.value;
+                    if (!url) return;
+                    navigator.clipboard.writeText(url).then(function() {
+                        webrtcCopyBtn.textContent = 'Copied!';
+                        webrtcCopyBtn.classList.add('copied');
+                        setTimeout(function() {
+                            webrtcCopyBtn.textContent = 'Copy';
+                            webrtcCopyBtn.classList.remove('copied');
+                        }, 1500);
+                    });
+                });
+            }
 
             function makeRoomId() {
                 return String(Math.floor(10000000 + Math.random() * 90000000));
@@ -272,10 +387,18 @@
                 pc.ondatachannel = function(event) {
                     state.dc = event.channel;
                     state.dc.onopen = function() {
-                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+                        if (state.role === 'host') {
+                            setWebRTCStatus('Connected', 'connected');
+                            if (typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+                        } else {
+                            setWebRTCStatus('Connected to host', 'connected');
+                        }
                     };
                     state.dc.onclose = function() {
-                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(0);
+                        if (state.role === 'host') {
+                            setWebRTCStatus('Waiting for guest', 'hosting');
+                            if (typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(0);
+                        }
                     };
                     state.dc.onmessage = function(e) {
                         if (state.role !== 'host') return;
@@ -360,10 +483,16 @@
                 if (!state.dc) {
                     state.dc = state.pc.createDataChannel('inputs');
                     state.dc.onopen = function() {
-                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+                        if (state.role === 'host') {
+                            setWebRTCStatus('Connected', 'connected');
+                            if (typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+                        }
                     };
                     state.dc.onclose = function() {
-                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(0);
+                        if (state.role === 'host') {
+                            setWebRTCStatus('Waiting for guest', 'hosting');
+                            if (typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(0);
+                        }
                     };
                     state.dc.onmessage = function(e) {
                         try {
@@ -418,13 +547,18 @@
                 state.targetPeerId = null;
                 var joinUrl = buildGuestJoinUrl(state.room);
                 console.log('WebRTC join URL (share with guest):', joinUrl);
+                setWebRTCStatus('Connecting…', '');
+                if (webrtcJoinLinkInput) webrtcJoinLinkInput.value = joinUrl;
+                if (webrtcLinkRow) webrtcLinkRow.style.display = 'flex';
                 setupPeerConnection();
                 await connectSignaling(state.room, state.peerId);
+                setWebRTCStatus('Hosting — share link with guest', 'hosting');
             }
 
             async function startGuest(roomId) {
                 state.role = 'guest';
                 state.room = roomId;
+                setWebRTCStatus('Joining…', '');
                 setupPeerConnection();
                 await connectSignaling(state.room, state.peerId);
             }
@@ -436,9 +570,15 @@
             var shouldJoin = urlParams.get('join') === '1';
 
             if (shouldJoin && roomFromUrl) {
-                startGuest(roomFromUrl).catch(function(err) { console.error('WebRTC join failed', err); });
+                startGuest(roomFromUrl).catch(function(err) {
+                    console.error('WebRTC join failed', err);
+                    setWebRTCStatus('Join failed', 'error');
+                });
             } else {
-                startHost().catch(function(err) { console.error('WebRTC host failed', err); });
+                startHost().catch(function(err) {
+                    console.error('WebRTC host failed', err);
+                    setWebRTCStatus('Host failed', 'error');
+                });
             }
         })();
     </script>
