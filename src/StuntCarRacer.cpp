@@ -68,6 +68,22 @@ UINT keyPress = '\0';
 DWORD lastInput = 0;
 static DWORD g_keyboardInput = 0;
 static DWORD g_player2Input = 0;
+#ifdef __EMSCRIPTEN__
+static DWORD g_remotePlayer2Input = 0;
+static bool g_webrtcGuestConnected = false;
+
+extern "C" {
+/* Called from JS when WebRTC guest is connected; guest input is passed as player 2 only (in-game, not menus). */
+EMSCRIPTEN_KEEPALIVE void SetWebRTCGuestConnected(int connected) {
+    g_webrtcGuestConnected = (connected != 0);
+    if (!connected)
+        g_remotePlayer2Input = 0;
+}
+EMSCRIPTEN_KEEPALIVE void SetWebRTCGuestPlayer2Input(unsigned int input) {
+    g_remotePlayer2Input = input;
+}
+}
+#endif
 
 static IDirectSound8* ds;
 IDirectSoundBuffer8* WreckSoundBuffer = NULL;
@@ -2312,7 +2328,11 @@ static void RefreshCombinedInput(void) {
         }
 
         lastInput = player1Input;
+#ifdef __EMSCRIPTEN__
+        g_player2Input = g_webrtcGuestConnected ? g_remotePlayer2Input : player2Input;
+#else
         g_player2Input = player2Input;
+#endif
     } else {
         DWORD combinedInput = g_keyboardInput;
         for (int i = 0; i < MAX_LOCAL_PLAYERS; ++i)

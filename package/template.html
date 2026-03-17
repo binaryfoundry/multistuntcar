@@ -199,6 +199,30 @@
                 keys: new Set(),
                 gamepads: new Map()
             };
+            var KEY_P1_LEFT = 1, KEY_P1_RIGHT = 2, KEY_P1_ACCEL = 4, KEY_P1_BRAKE = 8, KEY_P1_BOOST = 16;
+            function guestInputToPlayer2Dword() {
+                var d = 0;
+                var k = guestInput.keys;
+                if (k.has('ArrowLeft') || k.has('a') || k.has('A')) d |= KEY_P1_LEFT;
+                if (k.has('ArrowRight') || k.has('d') || k.has('D')) d |= KEY_P1_RIGHT;
+                if (k.has('ArrowUp') || k.has('w') || k.has('W')) d |= KEY_P1_ACCEL;
+                if (k.has('ArrowDown') || k.has('s') || k.has('S')) d |= KEY_P1_BRAKE;
+                if (k.has(' ') || k.has('Spacebar') || k.has('Shift')) d |= KEY_P1_BOOST;
+                var pads = guestInput.gamepads;
+                pads.forEach(function(p) {
+                    var ax = p.axes || [], bt = p.buttons || [];
+                    if (ax[0] <= -0.15 || (bt[14] && bt[14].pressed)) d |= KEY_P1_LEFT;
+                    if (ax[0] >= 0.15 || (bt[15] && bt[15].pressed)) d |= KEY_P1_RIGHT;
+                    if (ax[5] >= 0.15 || (bt[12] && bt[12].pressed)) d |= KEY_P1_ACCEL;
+                    if (ax[4] >= 0.15 || (bt[13] && bt[13].pressed) || (bt[1] && bt[1].pressed)) d |= KEY_P1_BRAKE;
+                    if ((bt[0] && bt[0].pressed) || (bt[2] && bt[2].pressed) || (bt[5] && bt[5].pressed)) d |= KEY_P1_BOOST;
+                });
+                return d;
+            }
+            function flushGuestInputToWasm() {
+                if (typeof Module === 'undefined' || !Module._SetWebRTCGuestPlayer2Input) return;
+                Module._SetWebRTCGuestPlayer2Input(guestInputToPlayer2Dword());
+            }
 
             async function createSession(room, peer) {
                 const res = await fetch(SIGNAL_BASE + '/session', {
@@ -230,11 +254,16 @@
 
                 pc.ondatachannel = function(event) {
                     state.dc = event.channel;
-                    state.dc.onopen = function() { /* data channel open */ };
+                    state.dc.onopen = function() {
+                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+                    };
+                    state.dc.onclose = function() {
+                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(0);
+                    };
                     state.dc.onmessage = function(e) {
                         if (state.role !== 'host') return;
                         try {
-                            const msg = JSON.parse(e.data);
+                            var msg = JSON.parse(e.data);
                             handleGuestInput(msg);
                         } catch (err) { console.error('Bad data channel message', err); }
                     };
@@ -246,21 +275,23 @@
 
             function handleGuestInput(msg) {
                 if (msg.type === 'key') {
-                    const key = String(msg.key || '');
+                    var key = String(msg.key || '');
                     if (!key) return;
                     if (msg.down) guestInput.keys.add(key);
                     else guestInput.keys.delete(key);
-                    if (typeof Module !== 'undefined' && Module.onGuestKey) Module.onGuestKey(key, msg.down);
+                    flushGuestInputToWasm();
                     return;
                 }
                 if (msg.type === 'gamepad') {
                     if (typeof msg.index !== 'number') return;
                     guestInput.gamepads.set(msg.index, { id: msg.id || '', axes: Array.isArray(msg.axes) ? msg.axes : [], buttons: Array.isArray(msg.buttons) ? msg.buttons : [] });
+                    flushGuestInputToWasm();
                     return;
                 }
                 if (msg.type === 'gamepad-disconnect') {
                     if (typeof msg.index !== 'number') return;
                     guestInput.gamepads.delete(msg.index);
+                    flushGuestInputToWasm();
                 }
             }
 
@@ -306,10 +337,15 @@
                 }
                 if (!state.dc) {
                     state.dc = state.pc.createDataChannel('inputs');
-                    state.dc.onopen = function() { };
+                    state.dc.onopen = function() {
+                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(1);
+                    };
+                    state.dc.onclose = function() {
+                        if (state.role === 'host' && typeof Module !== 'undefined' && Module._SetWebRTCGuestConnected) Module._SetWebRTCGuestConnected(0);
+                    };
                     state.dc.onmessage = function(e) {
                         try {
-                            const msg = JSON.parse(e.data);
+                            var msg = JSON.parse(e.data);
                             handleGuestInput(msg);
                         } catch (err) { console.error('Bad data channel message', err); }
                     };
