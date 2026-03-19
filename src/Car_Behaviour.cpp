@@ -177,6 +177,12 @@ static long rear_actual_height;
 static long off_left, off_right;
 static long wheel_off_road, distance_off_road;
 static long at_side_byte, which_side_byte;
+static const long kRespawnRoadSideLeft = -1;
+static const long kRespawnRoadSideRight = 1;
+static const long kRespawnRoadSideDefault = kRespawnRoadSideRight;
+static const long kRespawnRoadSideOffset = 160;
+// Persist the lane side each car started on so off-track resets can place cars apart in multiplayer.
+static long respawn_road_side = kRespawnRoadSideDefault;
 static long smaller_limit_required = FALSE;
 
 static long wreck_wheel_height_reduction = 0; // 0x200 if wrecked
@@ -305,6 +311,7 @@ static long CalcSectionYAngle(long piece, long x, long z);
 static void CalcCurveMeasurements(long piece, long x, long z, long* y_angle_out, long* radius_out,
                                   double* distance_from_centre_out);
 
+static void RememberRespawnRoadSideFromCurrentPosition(void);
 static void PositionCarAbovePiece(long piece);
 static void UpdateEngineRevs(void);
 static void DrawDustClouds(void);
@@ -371,6 +378,7 @@ void ResetPlayer(void) {
     off_left = 0, off_right = 0;
     wheel_off_road = 0, distance_off_road = 0;
     at_side_byte = 0, which_side_byte = 0;
+    respawn_road_side = kRespawnRoadSideDefault;
 
     smaller_limit_required = FALSE;
 
@@ -494,8 +502,12 @@ static void CarBehaviourActiveInstance(DWORD input, long* x, long* y, long* z, l
     }
 
     // reset player and control action replay as required
-    if ((off_track_count > OFF_TRACK_LIMIT) || (bNewGame) || (ReplayRequested)) {
+    const bool reset_from_off_track = (off_track_count > OFF_TRACK_LIMIT);
+    if (reset_from_off_track || (bNewGame) || (ReplayRequested)) {
+        const long saved_respawn_road_side = respawn_road_side;
         ResetPlayer();
+        if (reset_from_off_track)
+            respawn_road_side = saved_respawn_road_side;
 
         if (bNewGame || ReplayRequested) {
             // reset all animated objects
@@ -503,7 +515,7 @@ static void CarBehaviourActiveInstance(DWORD input, long* x, long* y, long* z, l
             ReplayFinished = FALSE;
         }
 
-        if (off_track_count > OFF_TRACK_LIMIT) {
+        if (reset_from_off_track) {
             PositionCarAbovePiece(player_current_piece);
         } else {
             if (bNewGame && bMultiplayerMode && (GetActiveCarBehaviourInstance() == 1)) {
@@ -518,6 +530,9 @@ static void CarBehaviourActiveInstance(DWORD input, long* x, long* y, long* z, l
             } else {
                 PositionCarAbovePiece(PlayersStartPiece);
             }
+
+            if (bNewGame && bMultiplayerMode)
+                RememberRespawnRoadSideFromCurrentPosition();
         }
         drop_start_done = FALSE;
         RequestRestartEngineAudioOnFirstInput(); /* engine audio restarts on next keyboard/gamepad input */
@@ -3266,6 +3281,16 @@ set.players.restart.position
 
 extern unsigned char sections_car_can_be_put_on[];
 
+static void RememberRespawnRoadSideFromCurrentPosition(void) {
+    CalculatePlayersRoadPosition();
+
+    const long road_midpoint = ROAD_WIDTH / 2;
+    if (players_road_x_position < road_midpoint)
+        respawn_road_side = kRespawnRoadSideLeft;
+    else if (players_road_x_position > road_midpoint)
+        respawn_road_side = kRespawnRoadSideRight;
+}
+
 static void PositionCarAbovePiece(long piece) {
     long piece_x, piece_z, height;
 
@@ -3336,8 +3361,10 @@ static void PositionCarAbovePiece(long piece) {
      */
     short sin_y, cos_y;
     GetSinCos(player_y_angle, &sin_y, &cos_y);
-    player_x += (160 * static_cast<long>(cos_y));
-    player_z -= (160 * static_cast<long>(sin_y));
+    const long side_offset = (respawn_road_side == kRespawnRoadSideLeft) ? -kRespawnRoadSideOffset
+                                                                          : kRespawnRoadSideOffset;
+    player_x += (side_offset * static_cast<long>(cos_y));
+    player_z -= (side_offset * static_cast<long>(sin_y));
 }
 
 /*    ======================================================================================= */
@@ -3524,6 +3551,7 @@ static int pendingEngineSoundIndexCount = 0;
     X(long, distance_off_road)                      \
     X(long, at_side_byte)                           \
     X(long, which_side_byte)                        \
+    X(long, respawn_road_side)                      \
     X(long, smaller_limit_required)                 \
     X(long, wreck_wheel_height_reduction)           \
     X(long, on_chains)                              \
