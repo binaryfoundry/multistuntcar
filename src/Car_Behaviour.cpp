@@ -240,6 +240,22 @@ static long player_x_acceleration, player_y_acceleration, player_z_acceleration;
 static long total_world_x_acceleration, total_world_y_acceleration, total_world_z_acceleration;
 
 static long player_x_rotation_speed = 0, player_y_rotation_speed = 0, player_z_rotation_speed = 0;
+/* Carry fractional dt-scaled integration deltas between physics steps. */
+static long player_x_rotation_speed_step_remainder = 0;
+static long player_y_rotation_speed_step_remainder = 0;
+static long player_z_rotation_speed_step_remainder = 0;
+
+static long player_world_x_speed_step_remainder = 0;
+static long player_world_y_speed_step_remainder = 0;
+static long player_world_z_speed_step_remainder = 0;
+
+static long player_x_position_step_remainder = 0;
+static long player_y_position_step_remainder = 0;
+static long player_z_position_step_remainder = 0;
+
+static long player_x_angle_step_remainder = 0;
+static long player_y_angle_step_remainder = 0;
+static long player_z_angle_step_remainder = 0;
 
 static long player_final_x_rotation_speed, player_final_y_rotation_speed, player_final_z_rotation_speed;
 
@@ -320,6 +336,7 @@ static void SetWheelRotationSpeed();
 static void CarBehaviourActiveInstance(DWORD input, long* x, long* y, long* z, long* x_angle, long* y_angle,
                                        long* z_angle, float stepSeconds);
 void ResetEngineAudioState(void);
+static long DistributeStepValueWithScale(long full_step_value, float step_scale, long* step_remainder_in_out);
 
 #ifdef USE_AMIGA_RECORDING
 static bool OpenAmigaRecording(void);
@@ -448,6 +465,18 @@ void ResetPlayer(void) {
     player_x_rotation_speed = 0;
     player_y_rotation_speed = 0;
     player_z_rotation_speed = 0;
+    player_x_rotation_speed_step_remainder = 0;
+    player_y_rotation_speed_step_remainder = 0;
+    player_z_rotation_speed_step_remainder = 0;
+    player_world_x_speed_step_remainder = 0;
+    player_world_y_speed_step_remainder = 0;
+    player_world_z_speed_step_remainder = 0;
+    player_x_position_step_remainder = 0;
+    player_y_position_step_remainder = 0;
+    player_z_position_step_remainder = 0;
+    player_x_angle_step_remainder = 0;
+    player_y_angle_step_remainder = 0;
+    player_z_angle_step_remainder = 0;
 
     // calculated
     player_final_x_rotation_speed = 0;
@@ -2890,13 +2919,19 @@ static void CalculateXZRotationAcceleration(void) {
 static void UpdatePlayersRotationSpeed(void) {
     long acceleration;
 
-    acceleration = (long)((float)((player_x_rotation_acceleration * REDUCTION) >> 8) * g_physicsStepScale);
+    acceleration = ((player_x_rotation_acceleration * REDUCTION) >> 8);
+    acceleration =
+        DistributeStepValueWithScale(acceleration, g_physicsStepScale, &player_x_rotation_speed_step_remainder);
     player_x_rotation_speed += acceleration;
 
-    acceleration = (long)((float)((player_y_rotation_acceleration * REDUCTION) >> 8) * g_physicsStepScale);
+    acceleration = ((player_y_rotation_acceleration * REDUCTION) >> 8);
+    acceleration =
+        DistributeStepValueWithScale(acceleration, g_physicsStepScale, &player_y_rotation_speed_step_remainder);
     player_y_rotation_speed += acceleration;
 
-    acceleration = (long)((float)((player_z_rotation_acceleration * REDUCTION) >> 8) * g_physicsStepScale);
+    acceleration = ((player_z_rotation_acceleration * REDUCTION) >> 8);
+    acceleration =
+        DistributeStepValueWithScale(acceleration, g_physicsStepScale, &player_z_rotation_speed_step_remainder);
     player_z_rotation_speed += acceleration;
     return;
 }
@@ -2940,13 +2975,16 @@ static void CalculateFinalRotationSpeed(void) {
 static void UpdatePlayersWorldSpeed(void) {
     long acceleration;
 
-    acceleration = (long)((float)((total_world_x_acceleration * REDUCTION) >> 8) * g_physicsStepScale);
+    acceleration = ((total_world_x_acceleration * REDUCTION) >> 8);
+    acceleration = DistributeStepValueWithScale(acceleration, g_physicsStepScale, &player_world_x_speed_step_remainder);
     player_world_x_speed += acceleration;
 
-    acceleration = (long)((float)((total_world_y_acceleration * REDUCTION) >> 8) * g_physicsStepScale);
+    acceleration = ((total_world_y_acceleration * REDUCTION) >> 8);
+    acceleration = DistributeStepValueWithScale(acceleration, g_physicsStepScale, &player_world_y_speed_step_remainder);
     player_world_y_speed += acceleration;
 
-    acceleration = (long)((float)((total_world_z_acceleration * REDUCTION) >> 8) * g_physicsStepScale);
+    acceleration = ((total_world_z_acceleration * REDUCTION) >> 8);
+    acceleration = DistributeStepValueWithScale(acceleration, g_physicsStepScale, &player_world_z_speed_step_remainder);
     player_world_z_speed += acceleration;
     return;
 }
@@ -2968,25 +3006,31 @@ static void UpdatePlayersPosition(void) {
     speed = ((player_world_x_speed * REDUCTION) >> 8);
     speed <<= 6;
     speed *= (PC_FACTOR * 4);
-    player_x += (long)((float)speed * g_physicsStepScale);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_x_position_step_remainder);
+    player_x += speed;
 
     speed = ((player_world_y_speed * REDUCTION) >> 8);
     speed <<= 7; // not sure why this is different
-    player_y += (long)((float)speed * g_physicsStepScale);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_y_position_step_remainder);
+    player_y += speed;
 
     speed = ((player_world_z_speed * REDUCTION) >> 8);
     speed <<= 6;
     speed *= (PC_FACTOR * 4);
-    player_z += (long)((float)speed * g_physicsStepScale);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_z_position_step_remainder);
+    player_z += speed;
 #else
     // 22/10/1998 - simplified the above
-    speed = (long)((float)((player_world_x_speed * REDUCTION) * PC_FACTOR) * g_physicsStepScale);
+    speed = ((player_world_x_speed * REDUCTION) * PC_FACTOR);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_x_position_step_remainder);
     player_x += speed;
 
-    speed = (long)((float)((player_world_y_speed * REDUCTION) >> 1) * g_physicsStepScale);
+    speed = ((player_world_y_speed * REDUCTION) >> 1);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_y_position_step_remainder);
     player_y += speed;
 
-    speed = (long)((float)((player_world_z_speed * REDUCTION) * PC_FACTOR) * g_physicsStepScale);
+    speed = ((player_world_z_speed * REDUCTION) * PC_FACTOR);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_z_position_step_remainder);
     player_z += speed;
 #endif
 
@@ -2995,13 +3039,16 @@ static void UpdatePlayersPosition(void) {
 
     //******** Set player's new angles ********
 
-    speed = (long)((float)((player_final_x_rotation_speed * REDUCTION) >> 8) * g_physicsStepScale);
+    speed = ((player_final_x_rotation_speed * REDUCTION) >> 8);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_x_angle_step_remainder);
     player_x_angle += speed;
 
-    speed = (long)((float)((player_final_y_rotation_speed * REDUCTION) >> 8) * g_physicsStepScale);
+    speed = ((player_final_y_rotation_speed * REDUCTION) >> 8);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_y_angle_step_remainder);
     player_y_angle += speed;
 
-    speed = (long)((float)((player_final_z_rotation_speed * REDUCTION) >> 8) * g_physicsStepScale);
+    speed = ((player_final_z_rotation_speed * REDUCTION) >> 8);
+    speed = DistributeStepValueWithScale(speed, g_physicsStepScale, &player_z_angle_step_remainder);
     player_z_angle += speed;
 
     // 19/05/1998 - limit to valid range as no longer stored as words
@@ -3590,12 +3637,24 @@ static int pendingEngineSoundIndexCount = 0;
     X(long, player_x_rotation_speed)                \
     X(long, player_y_rotation_speed)                \
     X(long, player_z_rotation_speed)                \
+    X(long, player_x_rotation_speed_step_remainder) \
+    X(long, player_y_rotation_speed_step_remainder) \
+    X(long, player_z_rotation_speed_step_remainder) \
     X(long, player_final_x_rotation_speed)          \
     X(long, player_final_y_rotation_speed)          \
     X(long, player_final_z_rotation_speed)          \
     X(long, player_x_rotation_acceleration)         \
     X(long, player_y_rotation_acceleration)         \
     X(long, player_z_rotation_acceleration)         \
+    X(long, player_world_x_speed_step_remainder)    \
+    X(long, player_world_y_speed_step_remainder)    \
+    X(long, player_world_z_speed_step_remainder)    \
+    X(long, player_x_position_step_remainder)       \
+    X(long, player_y_position_step_remainder)       \
+    X(long, player_z_position_step_remainder)       \
+    X(long, player_x_angle_step_remainder)          \
+    X(long, player_y_angle_step_remainder)          \
+    X(long, player_z_angle_step_remainder)          \
     X(long, Replay)                                 \
     X(long, ReplayRequested)                        \
     X(long, ReplayLooping)                          \
