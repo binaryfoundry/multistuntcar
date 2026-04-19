@@ -224,6 +224,53 @@ static const long kSmashCountdownTicks = []() -> long {
     return ticks;
 }();
 
+static bool IsGapTelemetryEnabled(void) {
+    static int enabled = -1;
+    if (enabled < 0) {
+        const char* env = getenv("SCR_GAP_TELEMETRY");
+        if (env) {
+            enabled = !((env[0] == '0') && (env[1] == '\0'));
+        } else {
+#if defined(DEBUG) || defined(_DEBUG)
+            enabled = 1;
+#else
+            enabled = 0;
+#endif
+        }
+    }
+    return (enabled != 0);
+}
+
+static unsigned long long g_gapTelemetryEventCounter = 0;
+
+static const char* DamageWheelMaskToName(unsigned int wheelDamageMask) {
+    if (wheelDamageMask == kDamageMaskFrontLeftWheel)
+        return "front_left";
+    if (wheelDamageMask == kDamageMaskFrontRightWheel)
+        return "front_right";
+    if (wheelDamageMask == kDamageMaskRearWheel)
+        return "rear";
+    return "unknown";
+}
+
+#if defined(DEBUG) || defined(_DEBUG)
+#define GAP_TELEMETRY_LOG(...)                                                                                         \
+    do {                                                                                                               \
+        if (IsGapTelemetryEnabled() && out) {                                                                          \
+            fprintf(out, __VA_ARGS__);                                                                                 \
+            fflush(out);                                                                                                \
+        }                                                                                                              \
+    } while (0)
+#else
+#define GAP_TELEMETRY_LOG(...)                                                                                         \
+    do {                                                                                                               \
+        if (IsGapTelemetryEnabled()) {                                                                                 \
+            printf(__VA_ARGS__);                                                                                       \
+            fflush(stdout);                                                                                             \
+        }                                                                                                              \
+    } while (0)
+#endif
+
 long front_left_amount_below_road = 0, front_right_amount_below_road = 0, rear_amount_below_road = 0;
 
 long front_left_wheel_speed = 0, front_right_wheel_speed = 0;
@@ -2096,8 +2143,13 @@ static void CalculateWheelCollision(long road_height, long actual_height, long* 
     long new_difference;
     long amount_below_road, old_amount_below_road;
     long damage;
+    const long previous_difference = *old_difference_in_out;
+    const long previous_amount_below_road = *amount_below_road_in_out;
+    const long previous_wheel_damage = *damage_in_out;
+    const char* wheelName = DamageWheelMaskToName(wheelDamageMask);
+    const long activeInstance = GetActiveCarBehaviourInstance();
 
-    /* Spring is in reference-tick units; velocity term has dt baked in, so scale for current step. */
+    // Keep dt-scaled spring response for high-Hz playability.
     const long spring_effective = (g_physicsStepScale > 0.0f)
         ? (long)((float)spring / g_physicsStepScale)
         : spring;
@@ -2110,12 +2162,37 @@ static void CalculateWheelCollision(long road_height, long actual_height, long* 
     else if (new_difference < -0x300)
         new_difference = -0x300;
 
+    // Generalized spike guard: limit how much penetration delta can change in one
+    // physics step, scaled from the original -0x300..+0x300 reference-tick range.
+    long difference_delta = new_difference - *old_difference_in_out;
+    long max_difference_delta = 0x300;
+    if (g_physicsStepScale > 0.0f) {
+        const float scaled_limit_f = 0x300 * g_physicsStepScale;
+        long scaled_limit = (long)(scaled_limit_f + 0.5f);
+        if (scaled_limit < 1)
+            scaled_limit = 1;
+        max_difference_delta = scaled_limit;
+    }
+    long difference_delta_clamped = difference_delta;
+    if (difference_delta_clamped > max_difference_delta)
+        difference_delta_clamped = max_difference_delta;
+    else if (difference_delta_clamped < -max_difference_delta)
+        difference_delta_clamped = -max_difference_delta;
+    if (difference_delta_clamped != difference_delta) {
+        GAP_TELEMETRY_LOG(
+            "[GAPTEL][%llu] DELTA_SLEW_CLAMP inst=%ld wheel=%s piece=%ld seg=%ld rawDelta=%ld clampDelta=%ld "
+            "limit=%ld stepScale=%.6f prevDiff=%ld newDiff=%ld\n",
+            ++g_gapTelemetryEventCounter, activeInstance, wheelName, player_current_piece, player_current_segment,
+            difference_delta, difference_delta_clamped, max_difference_delta, (double)g_physicsStepScale,
+            *old_difference_in_out, new_difference);
+    }
+
     // Assembly parity for calculate.difference uses 16-bit word arithmetic:
     // muls spring,d0 ; asr.l #8,d0 ; add.w d6,d0
     // Keep the wheel-collision response in signed-word space to avoid overdriving
     // penetration/damage when running with faster update rates.
     {
-        const short delta_word = static_cast<short>(new_difference - *old_difference_in_out);
+        const short delta_word = static_cast<short>(difference_delta_clamped);
         const short spring_word = static_cast<short>(spring_effective);
         const short damping_word = static_cast<short>(damping);
         const short new_difference_word = static_cast<short>(new_difference);
@@ -2136,6 +2213,16 @@ static void CalculateWheelCollision(long road_height, long actual_height, long* 
             grounded_count++; // wheel grounded - update grounded wheel count
 
         damage = *amount_below_road_in_out - (road_cushion_value * 256);
+        if ((damage >= 0x1200) || (labs(difference_delta) >= 0x500)) {
+            GAP_TELEMETRY_LOG(
+                "[GAPTEL][%llu] IMPACT_SPIKE inst=%ld wheel=%s piece=%ld seg=%ld damage=%ld amount=%ld prevAmt=%ld "
+                "newDiff=%ld prevDiff=%ld diffDelta=%ld roadHeight=%ld actualHeight=%ld zSpeed=%ld xSpeed=%ld "
+                "touchingRoad=%ld groundedCount=%ld offMap=%ld wheelOffRoad=%ld distOffRoad=%ld\n",
+                ++g_gapTelemetryEventCounter, activeInstance, wheelName, player_current_piece, player_current_segment,
+                damage, *amount_below_road_in_out, old_amount_below_road, new_difference, previous_difference,
+                difference_delta, road_height, actual_height, player_z_speed, player_x_speed, touching_road,
+                grounded_count, off_map_status, wheel_off_road, distance_off_road);
+        }
         if (damage >= 0x700) {
             if (damage > damage_value)
                 damage_value = damage;
@@ -2159,13 +2246,37 @@ static void CalculateWheelCollision(long road_height, long actual_height, long* 
                     damaged = 0x80;
                     g_damageAppliedWheelMaskThisLogicPeriod |= wheelDamageMask;
                     g_damageApplicationsThisLogicPeriod++;
+                    if ((damage_value >= 0x1200) || (damage >= 0xe0)) {
+                        GAP_TELEMETRY_LOG(
+                            "[GAPTEL][%llu] DAMAGE_APPLIED inst=%ld wheel=%s piece=%ld seg=%ld wheelDamageBefore=%ld "
+                            "wheelDamageAfter=%ld damageValue=%ld rawAmount=%ld fourteen=%ld appliedThisLogic=%d "
+                            "damageMask=0x%x damagedCount=%ld\n",
+                            ++g_gapTelemetryEventCounter, activeInstance, wheelName, player_current_piece,
+                            player_current_segment, previous_wheel_damage, *damage_in_out, damage_value,
+                            *amount_below_road_in_out, fourteen_frames_elapsed, g_damageApplicationsThisLogicPeriod,
+                            g_damageAppliedWheelMaskThisLogicPeriod, damaged_count);
+                    }
                 }
             }
-            if (*amount_below_road_in_out >= 0x1200)
+            if (*amount_below_road_in_out >= 0x1200) {
+                GAP_TELEMETRY_LOG(
+                    "[GAPTEL][%llu] AMOUNT_CLAMP inst=%ld wheel=%s piece=%ld seg=%ld preClamp=%ld damageValue=%ld "
+                    "roadHeight=%ld actualHeight=%ld\n",
+                    ++g_gapTelemetryEventCounter, activeInstance, wheelName, player_current_piece,
+                    player_current_segment, *amount_below_road_in_out, damage_value, road_height, actual_height);
                 *amount_below_road_in_out = 0x11ff;
+            }
         } else
             damaged_count = 0;
     } else {
+        if ((previous_amount_below_road >= 0x700) || (previous_difference >= 0x700) || (previous_difference <= -0x700)) {
+            GAP_TELEMETRY_LOG(
+                "[GAPTEL][%llu] CONTACT_RELEASE inst=%ld wheel=%s piece=%ld seg=%ld prevAmt=%ld prevDiff=%ld "
+                "newDiff=%ld roadHeight=%ld actualHeight=%ld zSpeed=%ld\n",
+                ++g_gapTelemetryEventCounter, activeInstance, wheelName, player_current_piece, player_current_segment,
+                previous_amount_below_road, previous_difference, new_difference, road_height, actual_height,
+                player_z_speed);
+        }
         *amount_below_road_in_out = 0;
         damaged_count = 0;
     }
@@ -4428,6 +4539,12 @@ void UpdateDamage(void) {
         new_damage = (d + rear_damage) / 2;                    // total average damage
                                                                // value new_damage must be used to draw damage line
         if ((new_damage >= 0xf0) && NOT_WRECKED) {
+            GAP_TELEMETRY_LOG(
+                "[GAPTEL][%llu] WRECK_TRIGGER inst=%ld piece=%ld seg=%ld newDamage=%ld damageValue=%ld "
+                "frontDamage=%ld rightDamage=%ld rearDamage=%ld zSpeed=%ld xSpeed=%ld touchingRoad=%ld\n",
+                ++g_gapTelemetryEventCounter, GetActiveCarBehaviourInstance(), player_current_piece,
+                player_current_segment, new_damage, damage_value, front_left_damage, front_right_damage, rear_damage,
+                player_z_speed, player_x_speed, touching_road);
             // Match original damage-line wreck trigger threshold.
             new_damage = 0xef;
             wreck_wheel_height_reduction = 0x200;
@@ -4458,6 +4575,17 @@ void UpdateDamage(void) {
         goto PlayCreakSound;
 
     // Consume one hole slot and show the smashed-hole state (regular hole follows on next logic tick).
+    GAP_TELEMETRY_LOG(
+        "[GAPTEL][%llu] HOLE_TRIGGER inst=%ld piece=%ld seg=%ld damageValue=%ld logicTickDamage=%ld "
+        "frontDamage=%ld rightDamage=%ld rearDamage=%ld amtFL=%ld amtFR=%ld amtR=%ld roadFL=%ld roadFR=%ld roadR=%ld "
+        "actualFL=%ld actualFR=%ld actualR=%ld zSpeed=%ld xSpeed=%ld touchingRoad=%ld grounded=%ld wheelOffRoad=%ld "
+        "distOffRoad=%ld offMap=%ld\n",
+        ++g_gapTelemetryEventCounter, GetActiveCarBehaviourInstance(), player_current_piece, player_current_segment,
+        damage_value, g_logicTickDamageValue, front_left_damage, front_right_damage, rear_damage,
+        front_left_amount_below_road, front_right_amount_below_road, rear_amount_below_road, front_left_road_height,
+        front_right_road_height, rear_road_height, front_left_actual_height, front_right_actual_height,
+        rear_actual_height, player_z_speed, player_x_speed, touching_road, grounded_count, wheel_off_road,
+        distance_off_road, off_map_status);
     nholes++;
 
     smashed_countdown = kSmashCountdownTicks;
