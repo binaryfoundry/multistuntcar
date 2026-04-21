@@ -1329,52 +1329,6 @@ void TextHelper::DrawTextLine(const wchar_t* line) {
         return;
     }
 
-    TextVertex* pVertices = NULL;
-    if (FAILED(m_vertexBuffer->Lock(0, vertexCount * sizeof(TextVertex), (void**)&pVertices, 0))) {
-        m_posy += m_size;
-        return;
-    }
-
-    const DWORD color = RGBA_MAKE((BYTE)(m_forecol[0] * 255.0f), (BYTE)(m_forecol[1] * 255.0f),
-                                  (BYTE)(m_forecol[2] * 255.0f), (BYTE)(m_forecol[3] * 255.0f));
-    float posx = static_cast<float>(m_posx);
-    const float posy = static_cast<float>(m_posy);
-    uint32_t out = 0;
-
-    for (uint32_t i = 0; i < glyphCount; i++) {
-        const unsigned char ch = (unsigned char)(line[i] & 0xff);
-        const float col = (float)(ch % 16);
-        const float lin = (float)(ch / 16);
-        const float w = m_as[ch] * m_displayScale;
-        const float h = m_fontsize * m_displayScale;
-
-        // Sample inside texel centers to avoid bleeding from adjacent glyph cells.
-        const float texelInset = 0.5f;
-        const float uMinPx = col * m_fontsize + texelInset;
-        float uMaxPx = col * m_fontsize + (float)m_as[ch] - texelInset;
-        if (uMaxPx < uMinPx)
-            uMaxPx = uMinPx;
-        const float vMinPx = lin * m_fontsize + texelInset;
-        const float vMaxPx = lin * m_fontsize + (float)m_fontsize - texelInset;
-
-        const float u0 = uMinPx * m_inv;
-        const float u1 = uMaxPx * m_inv;
-        const float v0 = vMinPx * m_inv;
-        const float v1 = vMaxPx * m_inv;
-
-        pVertices[out++] = {posx, posy, 0.5f, 1.0f, color, u0, v0};
-        pVertices[out++] = {posx + w, posy, 0.5f, 1.0f, color, u1, v0};
-        pVertices[out++] = {posx + w, posy + h, 0.5f, 1.0f, color, u1, v1};
-
-        pVertices[out++] = {posx, posy, 0.5f, 1.0f, color, u0, v0};
-        pVertices[out++] = {posx + w, posy + h, 0.5f, 1.0f, color, u1, v1};
-        pVertices[out++] = {posx, posy + h, 0.5f, 1.0f, color, u0, v1};
-
-        posx += w;
-    }
-
-    m_vertexBuffer->Unlock();
-
     RenderDevice* dev = GetRenderDevice();
     dev->SetRenderState(RS_ZENABLE, FALSE);
     dev->SetRenderState(RS_CULLMODE, CULL_NONE);
@@ -1388,7 +1342,58 @@ void TextHelper::DrawTextLine(const wchar_t* line) {
     glBindTexture(GL_TEXTURE_2D, m_texture);
     dev->SetStreamSource(0, m_vertexBuffer, 0, sizeof(TextVertex));
     dev->SetFVF(FVF_XYZRHW | FVF_DIFFUSE | FVF_TEX1);
-    dev->DrawPrimitive(PT_TRIANGLELIST, 0, vertexCount / 3);
+    auto DrawPass = [&](float baseX, float baseY, DWORD passColor) {
+        TextVertex* pVertices = NULL;
+        if (FAILED(m_vertexBuffer->Lock(0, vertexCount * sizeof(TextVertex), (void**)&pVertices, 0)))
+            return;
+
+        float posx = baseX;
+        const float posy = baseY;
+        uint32_t out = 0;
+
+        for (uint32_t i = 0; i < glyphCount; i++) {
+            const unsigned char ch = (unsigned char)(line[i] & 0xff);
+            const float col = (float)(ch % 16);
+            const float lin = (float)(ch / 16);
+            const float w = m_as[ch] * m_displayScale;
+            const float h = m_fontsize * m_displayScale;
+
+            // Sample inside texel centers to avoid bleeding from adjacent glyph cells.
+            const float texelInset = 0.5f;
+            const float uMinPx = col * m_fontsize + texelInset;
+            float uMaxPx = col * m_fontsize + (float)m_as[ch] - texelInset;
+            if (uMaxPx < uMinPx)
+                uMaxPx = uMinPx;
+            const float vMinPx = lin * m_fontsize + texelInset;
+            const float vMaxPx = lin * m_fontsize + (float)m_fontsize - texelInset;
+
+            const float u0 = uMinPx * m_inv;
+            const float u1 = uMaxPx * m_inv;
+            const float v0 = vMinPx * m_inv;
+            const float v1 = vMaxPx * m_inv;
+
+            pVertices[out++] = {posx, posy, 0.5f, 1.0f, passColor, u0, v0};
+            pVertices[out++] = {posx + w, posy, 0.5f, 1.0f, passColor, u1, v0};
+            pVertices[out++] = {posx + w, posy + h, 0.5f, 1.0f, passColor, u1, v1};
+
+            pVertices[out++] = {posx, posy, 0.5f, 1.0f, passColor, u0, v0};
+            pVertices[out++] = {posx + w, posy + h, 0.5f, 1.0f, passColor, u1, v1};
+            pVertices[out++] = {posx, posy + h, 0.5f, 1.0f, passColor, u0, v1};
+
+            posx += w;
+        }
+
+        m_vertexBuffer->Unlock();
+        dev->DrawPrimitive(PT_TRIANGLELIST, 0, vertexCount / 3);
+    };
+
+    const BYTE alpha = (BYTE)(m_forecol[3] * 255.0f);
+    const DWORD shadowColor = RGBA_MAKE(0, 0, 0, alpha);
+    const DWORD color = RGBA_MAKE((BYTE)(m_forecol[0] * 255.0f), (BYTE)(m_forecol[1] * 255.0f),
+                                  (BYTE)(m_forecol[2] * 255.0f), alpha);
+
+    DrawPass(static_cast<float>(m_posx) + 1.0f, static_cast<float>(m_posy) + 1.0f, shadowColor);
+    DrawPass(static_cast<float>(m_posx), static_cast<float>(m_posy), color);
 
     dev->SetTextureStageState(0, TSS_COLOROP, TOP_DISABLE);
     dev->SetRenderState(RS_ALPHABLENDENABLE, FALSE);
