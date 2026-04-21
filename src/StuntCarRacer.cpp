@@ -3434,8 +3434,25 @@ int main(int argc, const char** argv) {
                 screenH = customHeight > 0 ? customHeight : 480;
             }
         } else {
-            screenW = customWidth > 0 ? customWidth : 1920;
-            screenH = customHeight > 0 ? customHeight : 1080;
+            int defaultW = 1920;
+            int defaultH = 1080;
+#if defined(NDEBUG)
+#ifdef USE_SDL2
+            SDL_DisplayMode desktopMode;
+            if (SDL_GetDesktopDisplayMode(0, &desktopMode) == 0 && desktopMode.w > 0 && desktopMode.h > 0) {
+                defaultW = desktopMode.w;
+                defaultH = desktopMode.h;
+            }
+#else
+            const SDL_VideoInfo* infos = SDL_GetVideoInfo();
+            if (infos && infos->current_w > 0 && infos->current_h > 0) {
+                defaultW = infos->current_w;
+                defaultH = infos->current_h;
+            }
+#endif
+#endif
+            screenW = customWidth > 0 ? customWidth : defaultW;
+            screenH = customHeight > 0 ? customHeight : defaultH;
         }
 #endif
 #ifdef USE_SDL2
