@@ -378,6 +378,58 @@
                 canvas.height = h;
             }
         }
+        function isKeyboardControlTarget(target) {
+            var el = target || document.activeElement;
+            return !!(el && /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/i.test(el.tagName || ''));
+        }
+        // SDL2 keycode values for the native control keys handled by SetWebKeyboardKey().
+        var SDL_WEB_KEYS = {
+            ArrowLeft: 1073741904,
+            ArrowRight: 1073741903,
+            ArrowUp: 1073741906,
+            ArrowDown: 1073741905,
+            Space: 32,
+            ShiftLeft: 1073742049,
+            ShiftRight: 1073742053
+        };
+        function sdlKeyFromWebEvent(e) {
+            if (e.key === 'ArrowLeft') return SDL_WEB_KEYS.ArrowLeft;
+            if (e.key === 'ArrowRight') return SDL_WEB_KEYS.ArrowRight;
+            if (e.key === 'ArrowUp') return SDL_WEB_KEYS.ArrowUp;
+            if (e.key === 'ArrowDown') return SDL_WEB_KEYS.ArrowDown;
+            if (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') return SDL_WEB_KEYS.Space;
+            if (e.code === 'ShiftLeft') return SDL_WEB_KEYS.ShiftLeft;
+            if (e.code === 'ShiftRight') return SDL_WEB_KEYS.ShiftRight;
+            if (e.key === 'Shift') return e.location === KeyboardEvent.DOM_KEY_LOCATION_RIGHT ? SDL_WEB_KEYS.ShiftRight : SDL_WEB_KEYS.ShiftLeft;
+            switch (e.keyCode || e.which || 0) {
+            case 37:
+            case 63234:
+                return SDL_WEB_KEYS.ArrowLeft;
+            case 39:
+            case 63235:
+                return SDL_WEB_KEYS.ArrowRight;
+            case 38:
+            case 63232:
+                return SDL_WEB_KEYS.ArrowUp;
+            case 40:
+            case 63233:
+                return SDL_WEB_KEYS.ArrowDown;
+            case 32:
+                return SDL_WEB_KEYS.Space;
+            case 16:
+                return e.location === KeyboardEvent.DOM_KEY_LOCATION_RIGHT ? SDL_WEB_KEYS.ShiftRight : SDL_WEB_KEYS.ShiftLeft;
+            }
+            return 0;
+        }
+        function bridgeWebKeyboardEvent(e, pressed) {
+            if (window.WEBRTC_JOIN_MODE || isKeyboardControlTarget(e.target)) return false;
+            var sdlKey = sdlKeyFromWebEvent(e);
+            if (!sdlKey) return false;
+            focusGameCanvas();
+            if (typeof Module !== 'undefined' && Module.calledRun && Module._SetWebKeyboardKey) Module._SetWebKeyboardKey(sdlKey, pressed ? 1 : 0);
+            e.preventDefault();
+            return true;
+        }
         var Module = {
             print(text) {
                 console.log(Array.prototype.slice.call(arguments).join(' '));
@@ -414,13 +466,8 @@
             setTimeout(focusGameCanvas, 0);
             setTimeout(focusGameCanvas, 250);
         }, true);
-        document.addEventListener('keydown', function(e) {
-            if (window.WEBRTC_JOIN_MODE) return;
-            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Spacebar'].includes(e.key) || e.code === 'Space') {
-                focusGameCanvas();
-                e.preventDefault();
-            }
-        }, { passive: false, capture: true });
+        document.addEventListener('keydown', function(e) { bridgeWebKeyboardEvent(e, true); }, { passive: false, capture: true });
+        document.addEventListener('keyup', function(e) { bridgeWebKeyboardEvent(e, false); }, { passive: false, capture: true });
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() { resize(); focusGameCanvas(); });
         } else {

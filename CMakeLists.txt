@@ -71,7 +71,7 @@ if(EMSCRIPTEN)
     "SHELL:-sALLOW_MEMORY_GROWTH=1"
     "SHELL:-sINITIAL_MEMORY=20971520"
     "SHELL:--emrun"
-    "SHELL:-sEXPORTED_FUNCTIONS=_main,_SetWebRTCGuestConnected,_SetWebRTCGuestPlayer2Input"
+    "SHELL:-sEXPORTED_FUNCTIONS=_main,_SetWebRTCGuestConnected,_SetWebRTCGuestPlayer2Input,_SetWebKeyboardKey"
   )
 
   # glm headers for Emscripten (no system SDL/glm, so fetch glm).

@@ -72,6 +72,7 @@ static DWORD g_player2Input = 0;
 static DWORD g_remotePlayer2Input = 0;
 static bool g_webrtcGuestConnected = false;
 static bool g_webrtcReturnToMenuRequested = false;
+static void ApplyKeyboardInputForKey(UINT sdlKey, bool pressed);
 
 extern "C" {
 /* Called from JS when WebRTC guest is connected; guest input is passed as player 2 only (in-game, not menus). */
@@ -85,6 +86,18 @@ EMSCRIPTEN_KEEPALIVE void SetWebRTCGuestConnected(int connected) {
 }
 EMSCRIPTEN_KEEPALIVE void SetWebRTCGuestPlayer2Input(unsigned int input) {
     g_remotePlayer2Input = input;
+}
+/* Called from JS as a web-only keyboard bridge for browsers that do not pass cursor keys through SDL reliably. */
+EMSCRIPTEN_KEEPALIVE void SetWebKeyboardKey(unsigned int sdlKey, int pressed) {
+    if (pressed) {
+        keyPress = sdlKey;
+        if ((sdlKey != SDLK_LEFT && sdlKey != SDLK_RIGHT) || (GameMode != TRACK_MENU))
+            ApplyKeyboardInputForKey(sdlKey, true);
+    } else {
+        if (keyPress == sdlKey)
+            keyPress = 0;
+        ApplyKeyboardInputForKey(sdlKey, false);
+    }
 }
 }
 #endif
@@ -2575,6 +2588,48 @@ static void RefreshCombinedInput(void) {
 }
 #endif
 
+static void ApplyKeyboardInputForKey(UINT sdlKey, bool pressed) {
+    DWORD mask = 0;
+    switch (sdlKey) {
+    case SDLK_LEFT:
+        mask = KEY_P1_LEFT;
+        break;
+    case SDLK_RIGHT:
+        mask = KEY_P1_RIGHT;
+        break;
+#if defined(PANDORA) || defined(PYRA)
+    case SDLK_RCTRL:
+#else
+    case SDLK_SPACE:
+    case SDLK_RSHIFT:
+    case SDLK_LSHIFT:
+#endif
+        mask = KEY_P1_BOOST;
+        break;
+#if defined(PANDORA) || defined(PYRA)
+    case SDLK_END:
+#else
+    case SDLK_DOWN:
+#endif
+        mask = KEY_P1_BRAKE;
+        break;
+#if defined(PANDORA) || defined(PYRA)
+    case SDLK_PAGEDOWN:
+#else
+    case SDLK_UP:
+#endif
+        mask = KEY_P1_ACCEL;
+        break;
+    default:
+        return;
+    }
+
+    if (pressed)
+        g_keyboardInput |= mask;
+    else
+        g_keyboardInput &= ~mask;
+}
+
 bool process_events() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -2719,12 +2774,12 @@ bool process_events() {
             // controls for Car Behaviour, Player 1 (Left/Right = track change when in track menu)
             case SDLK_LEFT:
                 if (GameMode != TRACK_MENU)
-                    g_keyboardInput |= KEY_P1_LEFT;
+                    ApplyKeyboardInputForKey(keyPress, true);
                 break;
 
             case SDLK_RIGHT:
                 if (GameMode != TRACK_MENU)
-                    g_keyboardInput |= KEY_P1_RIGHT;
+                    ApplyKeyboardInputForKey(keyPress, true);
                 break;
 
 #if defined(PANDORA) || defined(PYRA)
@@ -2734,7 +2789,7 @@ bool process_events() {
             case SDLK_RSHIFT:
             case SDLK_LSHIFT:
 #endif
-                g_keyboardInput |= KEY_P1_BOOST;
+                ApplyKeyboardInputForKey(keyPress, true);
                 break;
 
 #if defined(PANDORA) || defined(PYRA)
@@ -2742,7 +2797,7 @@ bool process_events() {
 #else
             case SDLK_DOWN:
 #endif
-                g_keyboardInput |= KEY_P1_BRAKE;
+                ApplyKeyboardInputForKey(keyPress, true);
                 break;
 
 #if defined(PANDORA) || defined(PYRA)
@@ -2750,7 +2805,7 @@ bool process_events() {
 #else
             case SDLK_UP:
 #endif
-                g_keyboardInput |= KEY_P1_ACCEL;
+                ApplyKeyboardInputForKey(keyPress, true);
                 break;
 
             case SDLK_ESCAPE:
@@ -2770,11 +2825,11 @@ bool process_events() {
             switch (event.key.keysym.sym) {
             // controls for Car Behaviour, Player 1
             case SDLK_LEFT:
-                g_keyboardInput &= ~KEY_P1_LEFT;
+                ApplyKeyboardInputForKey(event.key.keysym.sym, false);
                 break;
 
             case SDLK_RIGHT:
-                g_keyboardInput &= ~KEY_P1_RIGHT;
+                ApplyKeyboardInputForKey(event.key.keysym.sym, false);
                 break;
 
 #if defined(PANDORA) || defined(PYRA)
@@ -2784,7 +2839,7 @@ bool process_events() {
             case SDLK_RSHIFT:
             case SDLK_LSHIFT:
 #endif
-                g_keyboardInput &= ~KEY_P1_BOOST;
+                ApplyKeyboardInputForKey(event.key.keysym.sym, false);
                 break;
 
 #if defined(PANDORA) || defined(PYRA)
@@ -2792,7 +2847,7 @@ bool process_events() {
 #else
             case SDLK_DOWN:
 #endif
-                g_keyboardInput &= ~KEY_P1_BRAKE;
+                ApplyKeyboardInputForKey(event.key.keysym.sym, false);
                 break;
 
 #if defined(PANDORA) || defined(PYRA)
@@ -2800,7 +2855,7 @@ bool process_events() {
 #else
             case SDLK_UP:
 #endif
-                g_keyboardInput &= ~KEY_P1_ACCEL;
+                ApplyKeyboardInputForKey(event.key.keysym.sym, false);
                 break;
             }
             break;
